@@ -1,0 +1,30 @@
+# Secrets / environment
+.env
+.env.*
+!.env.example
+
+# Databases (too large for GitHub, regenerable)
+*.db
+*.sqlite
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Scratch / working artifacts
+scratch_*.log
+scratch_shots/
+*.log
+
+# Local Claude settings
+.claude/settings.local.json
+.claude/*.tmp.*
+
+# OS
+.DS_Store
+Thumbs.db

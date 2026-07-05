@@ -1,0 +1,5 @@
+# motor de dados (coleta)
+playwright>=1.40
+# API + front
+fastapi>=0.115
+uvicorn[standard]>=0.30

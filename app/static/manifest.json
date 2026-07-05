@@ -1,0 +1,17 @@
+{
+  "name": "acha peça — busca e intercâmbio",
+  "short_name": "acha peça",
+  "description": "Busca de peças de reposição com intercâmbio por código OEM e por veículo.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e1116",
+  "theme_color": "#e8531a",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "/assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/assets/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

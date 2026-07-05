@@ -1,0 +1,14 @@
+[Unit]
+Description=acha peça — API + front (parts.jussa.com.br)
+After=network.target
+
+[Service]
+Type=simple
+User=jussa
+WorkingDirectory=/home/jussa/FileShare/development/acha_peca
+ExecStart=/home/jussa/FileShare/development/acha_peca/.venv/bin/uvicorn app.server:app --host 127.0.0.1 --port 8077 --workers 2
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

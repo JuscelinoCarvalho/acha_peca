@@ -1,0 +1,36 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#e8531a">
+<title>acha peça — busca de peças e intercâmbio</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/icon-180.png">
+<link rel="stylesheet" href="/assets/style.css">
+
+<header>
+  <div class="hwrap">
+    <div class="brandrow">
+      <svg class="logo" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#e8531a"/><path d="M24 11a13 13 0 100 26 13 13 0 000-26zm0 5a8 8 0 110 16 8 8 0 010-16z" fill="#fff"/><circle cx="24" cy="24" r="3.2" fill="#e8531a"/></svg>
+      <div>
+        <h1>acha peça</h1>
+        <small>busca &amp; intercâmbio de peças</small>
+      </div>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-mode="peca">Peça / Código</button>
+      <button class="tab" data-mode="veiculo">Por veículo</button>
+    </div>
+    <div class="searchbox">
+      <input id="q" autocomplete="off" autocapitalize="off" spellcheck="false"
+             placeholder="Código da peça, código OEM ou descrição…">
+      <button class="go" id="go" aria-label="Buscar">➜</button>
+      <div class="suggest" id="suggest" hidden></div>
+    </div>
+    <div class="hint" id="hint">Digite um código (ex.: <b>04C103085A</b>) e ache a peça equivalente de qualquer marca.</div>
+  </div>
+</header>
+
+<main id="main"></main>
+<footer id="foot"></footer>
+
+<script src="/assets/app.js"></script>
