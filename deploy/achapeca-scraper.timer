@@ -1,0 +1,11 @@
+[Unit]
+Description=dispara o worker de raspagem ML periodicamente (enche o cache aos poucos)
+
+[Timer]
+OnBootSec=8min
+OnUnitActiveSec=30min
+RandomizedDelaySec=12min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

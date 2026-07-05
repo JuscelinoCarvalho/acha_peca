@@ -137,6 +137,7 @@ async function showDetail(id) {
         <a class="prod" href="${esc(p.url)}" target="_blank" rel="noopener sponsored">
           ${p.thumbnail ? `<img loading="lazy" src="${esc(p.thumbnail)}" alt="">` : `<div class="noimg">🔩</div>`}
           <div class="pn2">${esc(p.name)}</div>
+          ${p.price ? `<div class="price">R$ ${p.price.toLocaleString("pt-BR", {minimumFractionDigits: 2})}</div>` : ""}
           <span class="ml">Mercado Livre ↗</span>
         </a>`).join("") + `</div>`;
     }

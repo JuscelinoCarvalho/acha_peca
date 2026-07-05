@@ -1,0 +1,11 @@
+[Unit]
+Description=acha peça — worker de raspagem ML (gentil, IP residencial)
+After=network.target
+
+[Service]
+Type=oneshot
+User=jussa
+WorkingDirectory=/home/jussa/FileShare/development/acha_peca
+# Lote pequeno, ritmo humano, para cedo se bater na parede anti-bot.
+ExecStart=/home/jussa/FileShare/development/acha_peca/.venv/bin/python -m app.scrape_worker --batch 8 --min 25 --max 55 --max-blocks 2
+Nice=10

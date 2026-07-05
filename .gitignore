@@ -18,8 +18,13 @@ env/
 
 # Scratch / working artifacts
 scratch_*.log
+scratch_*.py
 scratch_shots/
 *.log
+
+# Playwright persistent profile (scraper) e cache raspado
+.ml_profile/
+ml_cache.db*
 
 # Local Claude settings
 .claude/settings.local.json
