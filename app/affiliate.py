@@ -30,13 +30,14 @@ def ml_item_url(url: str) -> str:
 
 
 def buy_section(part: dict) -> dict:
-    """Monta a seção de compra: anúncios reais (raspados, com preço) + links de busca.
+    """Monta a seção de compra: links de busca por código OEM (+ cards com preço
+    se houver cache).
 
-    Produtos: anúncios ativos raspados do ML por GRUPO (categoria) e cacheados em
-    ml_cache — 1 colheita serve todas as peças do grupo (139k códigos OEM não
-    escalam; 782 grupos sim). Mostram preço real da categoria. O casamento EXATO
-    fica no link de busca por código OEM (preciso, abre no navegador do comprador).
-    A raspagem é semi-manual (app/harvest.py, IP residencial + solve do captcha).
+    O CTA robusto é o link de busca por CÓDIGO OEM — cai em anúncios ativos reais
+    e o comprador vê preço/estoque no navegador dele. Raspar preço do ML por conta
+    própria foi abandonado: o anti-bot (DataDome) loga, detecta a automação e
+    derruba a sessão. Se um dia um ACESSO PAGO (proxy/anti-bot ou API de dados)
+    popular ml_cache por grupo, os cards com preço aparecem aqui automaticamente.
     """
     brand = part.get("brand") or ""
     grp = part.get("product_group") or ""
@@ -48,22 +49,19 @@ def buy_section(part: dict) -> dict:
         if code and code.lower() not in seen:
             seen.add(code.lower()); codes.append(code)
 
-    # 1) anúncios reais do cache, chaveados por GRUPO (escala: 1 colheita serve
-    #    todas as peças do grupo). Enfileira o grupo se ainda não tem cache.
+    # 1) cards com preço SE o cache (por grupo) estiver populado por fonte externa.
+    #    Sem cache → lista vazia; a seção fica só com os links de busca.
     products = []
-    if grp:
-        cached = ml_cache.get_cached(grp)
-        if cached is None:
-            ml_cache.enqueue(grp)       # colheita por grupo pega depois
-        else:
-            for it in cached["items"][:6]:
-                products.append({
-                    "id": it.get("item_id") or it.get("url"),
-                    "name": it.get("title") or "",
-                    "price": it.get("price"),
-                    "thumbnail": it.get("thumbnail"),
-                    "url": ml_item_url(it["url"]),
-                })
+    cached = ml_cache.get_cached(grp) if grp else None
+    if cached:
+        for it in cached["items"][:6]:
+            products.append({
+                "id": it.get("item_id") or it.get("url"),
+                "name": it.get("title") or "",
+                "price": it.get("price"),
+                "thumbnail": it.get("thumbnail"),
+                "url": ml_item_url(it["url"]),
+            })
 
     # 2) links de busca por código OEM (sempre — precisos, funcionam sem cache).
     links = []

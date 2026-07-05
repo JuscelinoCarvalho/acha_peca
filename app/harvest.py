@@ -58,6 +58,43 @@ async def _wait_solved(page, secs: int = 300) -> str:
     return "blocked"
 
 
+async def login_flow(timeout_s: int = 600):
+    """Abre o navegador e espera (até 10 min) você fazer login COMPLETO (e-mail,
+    senha, 2FA). Salva a sessão logada no perfil p/ a colheita reaproveitar."""
+    print("Abrindo navegador — faça LOGIN completo na janela (e-mail, senha, código 2FA).\n"
+          "Não precisa pressa: aguardo até 10 min os anúncios aparecerem.\n", flush=True)
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=False)
+        ctx = await browser.new_context(user_agent=ml_scrape._UA, locale="pt-BR",
+                                        viewport={"width": 1100, "height": 780})
+        page = await ctx.new_page()
+        await page.goto(ml_scrape.search_url("amortecedor de suspensão"),
+                        wait_until="domcontentloaded", timeout=60000)
+        ok = False
+        for i in range(timeout_s // 3):
+            if await ml_scrape.classify(page) == "ok":
+                ok = True
+                break
+            if i % 4 == 0:
+                try:
+                    t = await page.title()
+                except Exception:
+                    t = "?"
+                print(f"  [{i*3}s] aguardando login/anúncios... ({t[:42]!r})", flush=True)
+            await asyncio.sleep(3)
+        if ok:
+            try:
+                await ctx.storage_state(path=STATE)
+            except Exception:
+                pass
+            print("\n>>> LOGIN OK — sessão logada salva. Agora rode: python -m app.harvest --groups 20 <<<", flush=True)
+        else:
+            print("\ntimeout — login não concluído a tempo.", flush=True)
+        await asyncio.sleep(2)
+        await ctx.close()
+        await browser.close()
+
+
 async def harvest(groups, limit, min_d, max_d):
     ok = empty = solves = 0
     for f in ("SingletonLock", "SingletonCookie", "SingletonSocket"):
@@ -110,11 +147,15 @@ async def harvest(groups, limit, min_d, max_d):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--login", action="store_true", help="passo de login (janela de 10 min p/ 2FA)")
     ap.add_argument("--groups", type=int, default=20)
     ap.add_argument("--limit", type=int, default=6)
     ap.add_argument("--min", dest="min_d", type=float, default=9)
     ap.add_argument("--max", dest="max_d", type=float, default=18)
     a = ap.parse_args()
+    if a.login:
+        asyncio.run(login_flow())
+        return
     groups = top_groups(a.groups)
     if not groups:
         print("nada a colher — todos os top grupos já têm cache fresco.")
