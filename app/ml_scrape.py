@@ -61,28 +61,57 @@ def search_url(query: str) -> str:
 _WALL_RE = re.compile(r"(seguridad|security|captcha|no eres un rob|não é um rob)", re.I)
 
 
-async def _is_blocked(page) -> bool:
-    """True se caímos na parede anti-bot ('Seguridad — Mercado Libre')."""
+_CLASSIFY_JS = r"""() => {
+  const q = s => document.querySelector(s);
+  const body = document.body ? document.body.innerText.slice(0, 4000) : '';
+  return {
+    items: document.querySelectorAll('li.ui-search-layout__item, .ui-search-result__wrapper').length,
+    hasSearch: !!q('.ui-search-main, .ui-search-results, [class*="ui-search"]'),
+    noResults: !!q('.ui-search-rescue, .ui-search-no-results') ||
+      /não encontramos|no encontramos|nenhum (anúncio|resultado)|não há (anúncios|publicaç)/i.test(body),
+  };
+}"""
+
+
+async def classify(page) -> str:
+    """Classifica a página: ok | empty | blocked (robusto contra re-desafio).
+
+    'empty' EXIGE marca explícita de "sem resultado". 0 itens sem essa marca (ou
+    sem a UI de busca, ou com título de parede) = blocked — nunca falso-vazio.
+    """
     try:
         title = await page.title()
     except Exception:
         title = ""
     if _WALL_RE.search(title or ""):
-        return True
-    # sem título revelador, checa se a página tem a estrutura de busca
-    has_search = await page.evaluate(
-        "() => !!document.querySelector('.ui-search-main, .ui-search-results, [class*=ui-search]')")
-    return not has_search
+        return "blocked"
+    try:
+        info = await page.evaluate(_CLASSIFY_JS)
+    except Exception:
+        return "blocked"
+    if info["items"] > 0:
+        return "ok"
+    if not info["hasSearch"]:
+        return "blocked"
+    return "empty" if info["noResults"] else "blocked"
 
 
 async def _scrape_one(page, query: str, limit: int):
     """Devolve (status, items). status ∈ ok|empty|blocked."""
     await page.goto(search_url(query), wait_until="domcontentloaded", timeout=45000)
     try:
-        await page.wait_for_selector(_ITEM_SEL, timeout=15000)
+        await page.wait_for_selector(_ITEM_SEL, timeout=12000)
     except Exception:
-        # sem card: pode ser parede anti-bot OU busca sem resultado
-        return ("blocked" if await _is_blocked(page) else "empty"), []
+        pass
+    status = await classify(page)
+    if status != "ok":
+        return status, []
+    out = await extract_items(page, limit)
+    return ("empty" if not out else "ok"), out
+
+
+async def extract_items(page, limit: int = 6):
+    """Extrai/dedup os anúncios da página de busca já carregada (usado no harvest)."""
     raw = await page.evaluate(_EXTRACT_JS)
     out, seen = [], set()
     for r in raw:
@@ -95,7 +124,7 @@ async def _scrape_one(page, query: str, limit: int):
         out.append(r)
         if len(out) >= limit:
             break
-    return ("empty" if not out else "ok"), out
+    return out
 
 
 async def search_many(queries, limit: int = 6, headless: bool = True, on_result=None,
