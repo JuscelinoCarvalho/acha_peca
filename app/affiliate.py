@@ -24,39 +24,33 @@ def ml_search(query: str) -> str:
 
 
 def buy_section(part: dict) -> dict:
-    """Monta a seção de compra: produtos reais do catálogo (API) + links de busca.
+    """Monta a seção de compra: links de busca no ML com atribuição de afiliado.
 
-    Produtos: tenta primeiro os códigos OEM (precisos), depois grupo+marca.
-    Links: buscas no ML (rede ampla) sempre presentes como alternativa.
+    Não exibimos cards de "produto de catálogo" do ML: medimos que, para
+    autopeças, o catálogo do ML é quase sempre inativo (link /p/{id} morto) ou
+    devolve produtos irrelevantes de outras categorias (casamento por palavra
+    solta). O sinal confiável é o link de BUSCA por CÓDIGO OEM — que cai em
+    anúncios ativos reais casando com aquele código, independente da marca (o
+    próprio valor do intercâmbio). O comprador vê preço/estoque no navegador
+    dele; a comissão viaja nos parâmetros matt_* da URL.
     """
     brand = part.get("brand") or ""
     grp = part.get("product_group") or ""
 
-    # 1) produtos reais do catálogo oficial (com afiliado no /p/{id})
-    queries, seen_q = [], set()
-    for c in (part.get("cross_references") or [])[:3]:
-        code = c.get("part_number")
-        if code and code.lower() not in seen_q:
-            seen_q.add(code.lower()); queries.append(code)
-    if grp:
-        queries.append(f"{grp} {brand}".strip())
+    # códigos OEM/cross-ref: o sinal mais preciso para busca no ML.
+    codes, seen = [], set()
+    for code in [part.get("part_number")] + [c.get("part_number")
+                                             for c in (part.get("cross_references") or [])]:
+        code = (code or "").strip()
+        if code and code.lower() not in seen:
+            seen.add(code.lower()); codes.append(code)
 
-    products, seen_id = [], set()
-    for q in queries:
-        for p in ml_api.products_search(q, limit=6):
-            if p["id"] not in seen_id:
-                seen_id.add(p["id"]); products.append(p)
-        if len(products) >= 8:
-            break
-
-    # 2) links de busca (fallback / rede ampla)
     links = []
-    pn = part.get("part_number")
-    if pn:
-        links.append({"kind": "codigo", "label": f"Código {pn}",
-                      "url": ml_search(f"{pn} {brand}".strip())})
+    for code in codes[:3]:
+        links.append({"kind": "codigo", "label": f"Código {code}",
+                      "url": ml_search(code)})
     if grp:
-        links.append({"kind": "descricao", "label": grp,
+        links.append({"kind": "descricao", "label": f"{grp} {brand}".strip(),
                       "url": ml_search(f"{grp} {brand}".strip())})
 
-    return {"products": products[:8], "search_links": links}
+    return {"products": [], "search_links": links}

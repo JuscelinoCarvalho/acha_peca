@@ -90,6 +90,12 @@ def products_search(query: str, limit: int = 6):
     for r in (d.get("results") or []):
         if not isinstance(r, dict) or not r.get("id"):
             continue
+        # Só produtos com oferta ativa. O catálogo do ML tem muitos produtos
+        # "inactive" (sem vendedor) — sobretudo em autopeças — cujo /p/{id}
+        # abre uma página morta. O param status=active da busca é ignorado
+        # pela API, então filtramos aqui pelo status de cada produto.
+        if r.get("status") != "active":
+            continue
         pics = r.get("pictures") or []
         out.append({
             "id": r["id"],
