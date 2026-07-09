@@ -81,17 +81,27 @@ def _callmebot(text, lead):
     urllib.request.urlopen(url, timeout=_TIMEOUT).read()
 
 
-def _whatsapp_cloud(text, lead):
+def _wa_cloud_send(number, text):
+    """Envia via Meta Cloud API para um número qualquer (levanta se falhar)."""
     tok, phone_id = _env("WHATSAPP_TOKEN"), _env("WHATSAPP_PHONE_ID")
-    to = _env("WHATSAPP_NOTIFY_TO")
-    if not (tok and phone_id and to):
-        return
+    if not (tok and phone_id and number):
+        raise RuntimeError("WhatsApp Cloud API não configurada")
+    num = re.sub(r"\D", "", number)
+    if len(num) <= 11:
+        num = "55" + num
     url = f"https://graph.facebook.com/v20.0/{phone_id}/messages"
-    body = json.dumps({"messaging_product": "whatsapp", "to": to,
+    body = json.dumps({"messaging_product": "whatsapp", "to": num,
                        "type": "text", "text": {"body": text}}).encode()
     req = urllib.request.Request(url, data=body, headers={
         "Authorization": f"Bearer {tok}", "content-type": "application/json"})
     urllib.request.urlopen(req, timeout=_TIMEOUT).read()
+
+
+def _whatsapp_cloud(text, lead):
+    to = _env("WHATSAPP_NOTIFY_TO")
+    if not to:
+        return
+    _wa_cloud_send(to, text)
 
 
 def _telegram(text, lead):
@@ -104,19 +114,25 @@ def _telegram(text, lead):
     urllib.request.urlopen(url, data=data, timeout=_TIMEOUT).read()
 
 
-def _email(text, lead):
+def _smtp_send(to, subject, text):
+    """Envia e-mail para um destinatário qualquer (levanta se falhar)."""
     host, user, pw = _env("SMTP_HOST"), _env("SMTP_USER"), _env("SMTP_PASS")
-    to = _env("NOTIFY_EMAIL") or user
     if not (host and user and pw and to):
-        return
+        raise RuntimeError("SMTP não configurado")
     msg = EmailMessage()
-    msg["Subject"] = f"Nova cotação: {lead.get('part_number') or ''} {lead.get('brand') or ''}".strip()
-    msg["From"], msg["To"] = user, to
+    msg["Subject"], msg["From"], msg["To"] = subject, user, to
     msg.set_content(text)
     with smtplib.SMTP(host, int(_env("SMTP_PORT", "587")), timeout=15) as s:
         s.starttls(context=ssl.create_default_context())
         s.login(user, pw)
         s.send_message(msg)
+
+
+def _email(text, lead):
+    to = _env("NOTIFY_EMAIL") or _env("SMTP_USER")
+    if not to:
+        return
+    _smtp_send(to, f"Nova cotação: {lead.get('part_number') or ''} {lead.get('brand') or ''}".strip(), text)
 
 
 _CHANNELS = (_callmebot, _whatsapp_cloud, _telegram, _email)
@@ -133,6 +149,70 @@ def notify_new_lead(lead: dict):
             ch(text, lead)
         except Exception:
             pass  # canal fora do ar / mal configurado não afeta os demais nem o lead
+
+
+# ---- distribuição para lojas parceiras ---------------------------------
+def _uf_from_city(city):
+    m = re.search(r"[/\-]\s*([A-Za-z]{2})\s*$", city or "")
+    return m.group(1).upper() if m else ""
+
+
+def _partner_text(lead):
+    L = ["🔔 Novo pedido de cotação — acha peça", "",
+         f"Peça: {lead.get('part_number') or '—'}"
+         + (f" · {lead['brand']}" if lead.get("brand") else "")]
+    if lead.get("product_group"):
+        L.append(f"Grupo: {lead['product_group']}")
+    if lead.get("quantity"):
+        L.append(f"Qtde: {lead['quantity']}")
+    L.append("")
+    L.append(f"Cliente: {lead.get('name') or '—'}"
+             + (f" — {lead['city']}" if lead.get("city") else ""))
+    L.append(f"WhatsApp do cliente: {lead.get('whatsapp') or '—'}")
+    if lead.get("note"):
+        L.append(f"Obs: {lead['note']}")
+    L += ["", f"Responder o cliente: {reply_link(lead)}"]
+    return "\n".join(L)
+
+
+def _send_to_partner(partner, lead):
+    """Envia o lead ao parceiro (e-mail e/ou WhatsApp Cloud). (canal, ok, detalhe)."""
+    text = _partner_text(lead)
+    tried = []
+    if partner.get("email"):
+        try:
+            _smtp_send(partner["email"],
+                       f"[acha peça] Pedido de cotação: {lead.get('part_number') or ''}", text)
+            return ("email", True, partner["email"])
+        except Exception as e:
+            tried.append(f"email:{e}")
+    if partner.get("whatsapp") and _env("WHATSAPP_TOKEN"):
+        try:
+            _wa_cloud_send(partner["whatsapp"], text)
+            return ("whatsapp_cloud", True, partner["whatsapp"])
+        except Exception as e:
+            tried.append(f"wa:{e}")
+    return ("nenhum", False, "; ".join(tried) or "parceiro sem canal / não configurado")
+
+
+def distribute_to_partners(lead: dict):
+    """Casa o lead com parceiros ativos e envia; registra cada tentativa."""
+    from . import leads
+    uf = _uf_from_city(lead.get("city"))
+    matched = leads.match_partners(uf, lead.get("product_group"))
+    for p in matched:
+        ch, ok, detail = _send_to_partner(p, lead)
+        leads.log_distribution(lead.get("id"), p["id"], ch, ok, str(detail)[:300])
+    return len(matched)
+
+
+def on_new_lead(lead: dict):
+    """Chamado no fluxo do /api/quote (em background): avisa o dono e distribui."""
+    notify_new_lead(lead)
+    try:
+        distribute_to_partners(lead)
+    except Exception:
+        pass
 
 
 def enabled_channels():

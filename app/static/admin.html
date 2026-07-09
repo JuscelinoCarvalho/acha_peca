@@ -52,11 +52,38 @@
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%238fa3b8' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E");
     background-repeat:no-repeat;background-position:right 10px center}
   .st-novo{color:var(--brand)}.empty{text-align:center;color:var(--muted);padding:50px 20px}
+  .abtn.nav.on{background:linear-gradient(180deg,var(--brand),var(--brand-2));color:#fff;border-color:var(--brand)}
+  .pform{background:linear-gradient(180deg,var(--surface),var(--surface-2));border:1px solid var(--line-2);
+    border-radius:14px;padding:14px;margin-bottom:16px;display:flex;flex-direction:column;gap:9px}
+  .pform input{width:100%;padding:11px 13px;font-size:14px;border-radius:10px;border:1px solid var(--line-2);
+    background:var(--surface);color:var(--text);outline:none}
+  .pform input:focus{border-color:var(--brand)}
+  .prow2{display:flex;gap:9px}.prow2 input{flex:1;min-width:0}
+  .pacts{display:flex;align-items:center;gap:12px}.pacts .cotsend{width:auto;padding:11px 18px}
+  .pcard{background:linear-gradient(180deg,var(--surface),var(--surface-2));border:1px solid var(--line);
+    border-radius:13px;padding:13px 15px;margin-bottom:10px}
+  .pcard.off{opacity:.55}
+  .pcard .p1{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .pcard .pname{font-weight:800;font-size:15.5px}
+  .pcard .cov{color:var(--muted);font-size:12.5px;margin-top:3px;display:flex;flex-wrap:wrap;gap:4px 14px}
+  .pcard .cov b{color:var(--text);font-weight:700}
+  .pcard .pcontact{color:var(--muted);font-size:13px;margin-top:6px}
+  .pcard .pbtns{display:flex;gap:7px}
+  .pbtn{background:var(--surface-3);border:1px solid var(--line-2);color:var(--text);font-weight:700;
+    font-size:12px;padding:6px 11px;border-radius:9px;cursor:pointer}
+  .pbtn:hover{border-color:var(--brand)}.pbtn.del:hover{border-color:#ff6b6b;color:#ff6b6b}
+  .badge-on{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:3px 9px;border-radius:20px;
+    background:rgba(61,220,151,.15);color:#3ddc97;border:1px solid rgba(61,220,151,.3)}
+  .badge-off{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:3px 9px;border-radius:20px;
+    background:var(--surface-3);color:var(--muted);border:1px solid var(--line-2)}
 </style>
 </head>
 <body>
 <div class="abar"><div class="awrap">
-  <h1>📋 Leads — acha peça</h1><div class="sp"></div>
+  <h1>📋 acha peça</h1>
+  <button class="abtn nav on" id="navLeads" hidden>Leads</button>
+  <button class="abtn nav" id="navPartners" hidden>Parceiros</button>
+  <div class="sp"></div>
   <a class="abtn" id="csv" href="#" hidden>⬇ CSV</a>
   <button class="abtn" id="reload" hidden>↻ Atualizar</button>
   <button class="abtn" id="logout" hidden>Sair</button>
@@ -71,9 +98,27 @@
 </div>
 
 <main id="app" hidden>
-  <div class="stats" id="stats"></div>
-  <div class="filters" id="filters"></div>
-  <div id="list"></div>
+  <section id="viewLeads">
+    <div class="stats" id="stats"></div>
+    <div class="filters" id="filters"></div>
+    <div id="list"></div>
+  </section>
+  <section id="viewPartners" hidden>
+    <div class="stats" id="pstats"></div>
+    <form class="pform" id="pform">
+      <input type="hidden" id="pId">
+      <div class="prow"><input id="pName" placeholder="Nome da loja *"></div>
+      <div class="prow2"><input id="pWa" inputmode="tel" placeholder="WhatsApp (com DDD)"><input id="pEmail" placeholder="E-mail"></div>
+      <div class="prow2">
+        <input id="pUfs" placeholder="UFs: SP,RJ  ou  *" value="*">
+        <input id="pGroups" placeholder="Grupos: freio,filtro  ou  *" value="*">
+      </div>
+      <div class="pacts"><button type="submit" class="cotsend" id="pSave">Salvar parceiro</button>
+        <button type="button" class="abtn" id="pClear" hidden>Cancelar edição</button>
+        <span class="cotmsg err" id="pMsg"></span></div>
+    </form>
+    <div id="plist"></div>
+  </section>
 </main>
 
 <script>
@@ -151,7 +196,78 @@ async function setStatus(id, status, sel){
 }
 
 function showApp(){ $("#gate").hidden=true; $("#app").hidden=false;
-  ["#csv","#reload","#logout"].forEach(s=>$(s).hidden=false); }
+  ["#csv","#reload","#logout","#navLeads","#navPartners"].forEach(s=>$(s).hidden=false); }
+
+/* ---- navegação entre views ---- */
+let view = "leads";
+function switchView(v){
+  view = v;
+  $("#viewLeads").hidden = v!=="leads";
+  $("#viewPartners").hidden = v!=="partners";
+  $("#navLeads").classList.toggle("on", v==="leads");
+  $("#navPartners").classList.toggle("on", v==="partners");
+  $("#csv").style.display = v==="leads" ? "" : "none";
+  if(v==="partners") loadPartners(); else load();
+}
+$("#navLeads").onclick = ()=>switchView("leads");
+$("#navPartners").onclick = ()=>switchView("partners");
+
+/* ---- parceiros ---- */
+async function loadPartners(){
+  let data;
+  try{ const r = await api("/api/admin/partners"); if(!r.ok) throw new Error(r.status); data = await r.json(); }
+  catch(e){ if(String(e.message)==="401"){logout("Token inválido.");return;} $("#plist").innerHTML=`<div class="empty">Erro (${esc(e.message)}).</div>`; return; }
+  const c = data.counts||{};
+  $("#pstats").innerHTML = [["total","Parceiros"],["active","Ativos"],["distributions","Leads distribuídos"]]
+    .map(([k,lbl])=>`<div class="stat"><b>${c[k]||0}</b><span>${lbl}</span></div>`).join("");
+  const ps = data.partners||[];
+  $("#plist").innerHTML = ps.length ? ps.map(pcardHTML).join("")
+    : `<div class="empty">Nenhum parceiro cadastrado. Adicione o primeiro acima.</div>`;
+  $("#plist").querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>partnerAct(b.dataset.act, +b.dataset.id));
+}
+function pcardHTML(p){
+  return `<div class="pcard ${p.active?"":"off"}">
+    <div class="p1"><span class="pname">${esc(p.name)}</span>
+      <span class="${p.active?"badge-on":"badge-off"}">${p.active?"ativo":"inativo"}</span></div>
+    <div class="cov"><span>UFs: <b>${esc(p.ufs||"*")}</b></span><span>Grupos: <b>${esc(p.groups||"*")}</b></span></div>
+    <div class="pcontact">${p.whatsapp?("📱 "+esc(p.whatsapp)+"  "):""}${p.email?("✉ "+esc(p.email)):""}</div>
+    <div class="cov" style="margin-top:10px"><div class="pbtns">
+      <button class="pbtn" data-act="edit" data-id="${p.id}">Editar</button>
+      <button class="pbtn" data-act="toggle" data-id="${p.id}">${p.active?"Desativar":"Ativar"}</button>
+      <button class="pbtn del" data-act="del" data-id="${p.id}">Excluir</button>
+    </div></div>
+  </div>`;
+}
+let editing = null;
+async function partnerAct(act, id){
+  if(act==="toggle"){ await api(`/api/admin/partners/${id}/toggle`,{method:"POST"}); loadPartners(); return; }
+  if(act==="del"){ if(!confirm("Excluir este parceiro?")) return;
+    await api(`/api/admin/partners/${id}`,{method:"DELETE"}); loadPartners(); return; }
+  if(act==="edit"){
+    const r = await api("/api/admin/partners"); const p = (await r.json()).partners.find(x=>x.id===id);
+    if(!p) return;
+    editing = id; $("#pId").value = id; $("#pName").value=p.name||""; $("#pWa").value=p.whatsapp||"";
+    $("#pEmail").value=p.email||""; $("#pUfs").value=p.ufs||"*"; $("#pGroups").value=p.groups||"*";
+    $("#pSave").textContent="Salvar alterações"; $("#pClear").hidden=false;
+    $("#pName").scrollIntoView({behavior:"smooth",block:"center"});
+  }
+}
+function pClear(){ editing=null; $("#pform").reset(); $("#pId").value=""; $("#pUfs").value="*"; $("#pGroups").value="*";
+  $("#pSave").textContent="Salvar parceiro"; $("#pClear").hidden=true; $("#pMsg").textContent=""; }
+$("#pClear").onclick = pClear;
+$("#pform").onsubmit = async e=>{
+  e.preventDefault();
+  const body = { id: editing||undefined, name:$("#pName").value.trim(), whatsapp:$("#pWa").value.trim(),
+    email:$("#pEmail").value.trim(), ufs:$("#pUfs").value.trim()||"*", groups:$("#pGroups").value.trim()||"*" };
+  if(!body.name){ $("#pMsg").textContent="Informe o nome."; return; }
+  if(!body.email && !body.whatsapp){ $("#pMsg").textContent="Informe e-mail ou WhatsApp."; return; }
+  try{
+    const r = await api("/api/admin/partners",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok||!j.ok) throw new Error(j.detail||"falha");
+    pClear(); loadPartners();
+  }catch(err){ $("#pMsg").textContent = err.message||"Não deu para salvar."; }
+};
 function logout(msg){ localStorage.removeItem(KEY); token=""; location.reload(); if(msg) $("#gerr").textContent=msg; }
 
 $("#enter").onclick = ()=>{ token = $("#tok").value.trim(); if(!token) return;

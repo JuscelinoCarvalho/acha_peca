@@ -147,8 +147,8 @@ def api_quote(q: QuoteIn, request: Request, background: BackgroundTasks):
         "user_agent": _clean(request.headers.get("user-agent"), 300),
     }
     qid = leads.add_quote(lead)
-    # roteamento: notifica os canais configurados APÓS responder (não bloqueia).
-    background.add_task(notify.notify_new_lead, dict(lead, id=qid))
+    # roteamento: avisa o dono + distribui p/ parceiros APÓS responder (não bloqueia).
+    background.add_task(notify.on_new_lead, dict(lead, id=qid))
     return {"ok": True, "id": qid}
 
 
@@ -183,6 +183,62 @@ def api_admin_leads_csv(token: str = ""):
         w.writerow([r.get(c, "") for c in cols])
     return PlainTextResponse(buf.getvalue(), media_type="text/csv",
                              headers={"Content-Disposition": "attachment; filename=leads.csv"})
+
+
+# ---- parceiros (admin) ----
+class PartnerIn(BaseModel):
+    id: int | None = None
+    name: str
+    whatsapp: str | None = None
+    email: str | None = None
+    ufs: str | None = "*"
+    groups: str | None = "*"
+    active: bool = True
+
+
+@app.get("/api/admin/partners")
+def api_admin_partners(token: str = ""):
+    _check_admin(token)
+    return {"partners": leads.list_partners(), "counts": leads.partner_counts()}
+
+
+@app.post("/api/admin/partners")
+def api_admin_partner_save(p: PartnerIn, token: str = ""):
+    _check_admin(token)
+    if not (p.name or "").strip():
+        raise HTTPException(400, "nome é obrigatório")
+    if not (p.email or p.whatsapp):
+        raise HTTPException(400, "informe e-mail ou WhatsApp do parceiro")
+    d = p.model_dump()
+    if p.id:
+        if not leads.update_partner(p.id, d):
+            raise HTTPException(404, "parceiro não encontrado")
+        return {"ok": True, "id": p.id}
+    return {"ok": True, "id": leads.add_partner(d)}
+
+
+@app.post("/api/admin/partners/{pid}/toggle")
+def api_admin_partner_toggle(pid: int, token: str = ""):
+    _check_admin(token)
+    cur = {p["id"]: p for p in leads.list_partners()}.get(pid)
+    if not cur:
+        raise HTTPException(404, "parceiro não encontrado")
+    leads.set_partner_active(pid, not cur["active"])
+    return {"ok": True}
+
+
+@app.delete("/api/admin/partners/{pid}")
+def api_admin_partner_delete(pid: int, token: str = ""):
+    _check_admin(token)
+    if not leads.delete_partner(pid):
+        raise HTTPException(404, "parceiro não encontrado")
+    return {"ok": True}
+
+
+@app.get("/api/admin/leads/{lead_id}/distributions")
+def api_admin_lead_dists(lead_id: int, token: str = ""):
+    _check_admin(token)
+    return {"distributions": leads.distributions_for_lead(lead_id)}
 
 
 @app.get("/api/admin/notify-status")
