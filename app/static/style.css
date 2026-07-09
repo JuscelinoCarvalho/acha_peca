@@ -243,6 +243,41 @@ main{max-width:900px;margin:0 auto;padding:18px 16px}
 .buy.codigo{outline:2px solid rgba(45,50,119,.3)}
 .buynote{color:var(--muted);font-size:11.5px;margin-top:10px;text-align:center}
 
+/* cotação (lead) */
+.cotacao{margin:0 0 16px}
+.cta-cot{width:100%;display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:14px 18px;border:0;border-radius:14px;cursor:pointer;color:#fff;font-weight:800;
+  font-size:16px;letter-spacing:.2px;
+  background:linear-gradient(180deg,var(--brand),var(--brand-2));
+  box-shadow:0 6px 20px rgba(31,111,224,.45),inset 0 1px 0 rgba(255,255,255,.28);
+  transition:filter .15s,transform .1s}
+.cta-cot span{font-size:11.5px;font-weight:600;opacity:.9;letter-spacing:.3px}
+.cta-cot:hover{filter:brightness(1.07)}
+.cta-cot:active{transform:scale(.99)}
+.cta-cot.open{border-radius:14px 14px 0 0;box-shadow:none}
+.cotform{background:linear-gradient(180deg,var(--surface-2),var(--surface));
+  border:1px solid var(--line-2);border-top:0;border-radius:0 0 14px 14px;
+  padding:14px;display:flex;flex-direction:column;gap:9px}
+.cotform input,.cotform textarea{width:100%;padding:12px 13px;font-size:15px;font-family:inherit;
+  border-radius:10px;border:1px solid var(--line-2);background:var(--surface);color:var(--text);
+  outline:none;box-shadow:inset 0 2px 6px rgba(0,0,0,.22);transition:border-color .15s,box-shadow .15s}
+.cotform input::placeholder,.cotform textarea::placeholder{color:var(--faint)}
+.cotform input:focus,.cotform textarea:focus{border-color:var(--brand);
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.22),var(--ring)}
+.cotform textarea{resize:vertical;min-height:44px}
+.cotrow2{display:flex;gap:9px}.cotrow2 input:last-child{max-width:110px}
+.cotsend{padding:13px;border:0;border-radius:11px;cursor:pointer;color:#fff;font-weight:800;font-size:15px;
+  background:linear-gradient(180deg,var(--brand),var(--brand-2));
+  box-shadow:0 3px 12px rgba(31,111,224,.45),inset 0 1px 0 rgba(255,255,255,.28);
+  transition:filter .15s,transform .1s}
+.cotsend:hover{filter:brightness(1.07)}.cotsend:active{transform:scale(.99)}
+.cotsend:disabled{opacity:.7;cursor:default}
+.cotmsg{font-size:13px;text-align:center;min-height:0}
+.cotmsg.err{color:#ff6b6b;font-weight:600}
+.cotok{text-align:center;padding:14px 8px;color:var(--text);line-height:1.5;
+  background:rgba(61,220,151,.1);border:1px solid rgba(61,220,151,.3);border-radius:11px}
+.cotok b{font-family:var(--mono)}
+
 /* voltar */
 .back{display:inline-flex;align-items:center;gap:6px;background:var(--surface-2);
   border:1px solid var(--line);color:var(--text);font-size:14px;font-weight:700;

@@ -170,6 +170,22 @@ async function showDetail(id) {
       <div class="chips">${chips.map(c => `<span class="chip">${esc(c)}</span>`).join("")}</div>
     </div>`;
 
+  // ---- cotação (lead) ----
+  html += `<div class="cotacao" id="cotacao">
+    <button class="cta-cot" id="cotBtn">💬 Pedir cotação<span>receba preços de lojas — sem compromisso</span></button>
+    <form class="cotform" id="cotForm" hidden>
+      <input id="cotZap" inputmode="tel" autocomplete="tel" placeholder="WhatsApp com DDD *">
+      <input id="cotNome" autocomplete="name" placeholder="Seu nome">
+      <div class="cotrow2">
+        <input id="cotCidade" placeholder="Cidade / UF">
+        <input id="cotQtd" inputmode="numeric" placeholder="Qtde">
+      </div>
+      <textarea id="cotObs" rows="2" placeholder="Observação (opcional)"></textarea>
+      <button type="submit" class="cotsend">Enviar pedido de cotação</button>
+      <div class="cotmsg" id="cotMsg"></div>
+    </form>
+  </div>`;
+
   const buy = d.buy || {};
   const prods = buy.products || [], slinks = buy.search_links || [];
   if (prods.length || slinks.length) {
@@ -213,6 +229,42 @@ async function showDetail(id) {
   }
   main.innerHTML = html;
   window.scrollTo(0, 0);
+
+  // cotação: abre o form e envia o lead (POST /api/quote)
+  const cotBtn = $("#cotBtn"), cotForm = $("#cotForm");
+  if (cotBtn && cotForm) {
+    cotBtn.onclick = () => {
+      cotForm.hidden = !cotForm.hidden;
+      cotBtn.classList.toggle("open", !cotForm.hidden);
+      if (!cotForm.hidden) $("#cotZap").focus();
+    };
+    cotForm.onsubmit = async e => {
+      e.preventDefault();
+      const msg = $("#cotMsg"), zap = $("#cotZap").value.trim();
+      if (zap.replace(/\D/g, "").length < 10) {
+        msg.className = "cotmsg err"; msg.textContent = "Informe um WhatsApp válido com DDD."; return;
+      }
+      const send = cotForm.querySelector(".cotsend");
+      send.disabled = true; send.textContent = "Enviando…"; msg.textContent = "";
+      try {
+        const r = await fetch("/api/quote", {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            part_id: d.id, part_number: d.part_number, brand: d.brand,
+            product_group: d.product_group, name: $("#cotNome").value,
+            whatsapp: zap, city: $("#cotCidade").value,
+            quantity: parseInt($("#cotQtd").value) || null, note: $("#cotObs").value
+          })
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.ok) throw new Error(j.detail || "falha");
+        cotForm.innerHTML = `<div class="cotok">✅ Pedido recebido!<br>Em breve entramos em contato pelo WhatsApp com as melhores ofertas para <b>${esc(d.part_number)}</b>.</div>`;
+      } catch (err) {
+        msg.className = "cotmsg err"; msg.textContent = "Não deu para enviar agora. Tente de novo.";
+        send.disabled = false; send.textContent = "Enviar pedido de cotação";
+      }
+    };
+  }
 
   // combo de marca de veículo: mostra a lista da marca escolhida (1ª pré-selecionada),
   // com limite e barra de rolagem.
