@@ -3,6 +3,8 @@ const $ = s => document.querySelector(s);
 const main = $("#main"), input = $("#q"), suggestBox = $("#suggest"), hint = $("#hint");
 let mode = "peca";
 const esc = s => (s == null ? "" : String(s)).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+/* minúsculas sem acento — filtro acento-insensível no cliente */
+const ua = s => (s == null ? "" : String(s)).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 const api = async u => (await fetch(u)).json();
 
 /* ---------- roteamento por hash ---------- */
@@ -83,25 +85,65 @@ function cardHTML(r) {
       <span>${esc((r.catalog||"").split(".")[0])}</span></div>
   </div>`;
 }
-function wireCards() {
-  main.querySelectorAll(".card[data-id]").forEach(c =>
+function wireCards(root) {
+  (root || main).querySelectorAll(".card[data-id]").forEach(c =>
     c.onclick = () => location.hash = "id/" + encodeURIComponent(c.dataset.id));
+}
+
+/* lista de resultados com filtros (texto + marca) e barra de rolagem.
+   os dados vêm inteiros do servidor; a filtragem é feita no cliente. */
+function renderResults(results, statusText) {
+  const brands = [...new Set(results.map(r => r.brand).filter(Boolean))].sort();
+  const brandOpts = brands.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join("");
+  main.innerHTML = `
+    <div class="status">${statusText}</div>
+    <div class="resbar">
+      <input class="resfilter" id="resfilter" autocomplete="off" placeholder="filtrar nestes resultados…">
+      <select class="selbox" id="resbrand">
+        <option value="">Todas as marcas (${brands.length})</option>${brandOpts}
+      </select>
+    </div>
+    <div class="reslist" id="reslist"></div>
+    <div class="status subcount" id="rescount"></div>`;
+
+  const listEl = $("#reslist"), countEl = $("#rescount");
+  const fInput = $("#resfilter"), bSel = $("#resbrand");
+  function apply() {
+    const term = ua(fInput.value.trim());
+    const brand = bSel.value;
+    const filtered = results.filter(r => {
+      if (brand && r.brand !== brand) return false;
+      if (term) {
+        const hay = ua([r.part_number, r.product_group, r.brand, r.application, r.matched_code, r.catalog].filter(Boolean).join(" "));
+        if (!hay.includes(term)) return false;
+      }
+      return true;
+    });
+    listEl.innerHTML = filtered.length
+      ? filtered.map(cardHTML).join("")
+      : `<div class="empty small"><div class="big">🔍</div><p>Nenhum resultado com esses filtros.</p></div>`;
+    countEl.textContent = filtered.length === results.length
+      ? `${results.length} resultado(s)`
+      : `${filtered.length} de ${results.length} resultado(s)`;
+    wireCards(listEl);
+  }
+  fInput.addEventListener("input", apply);
+  bSel.addEventListener("change", apply);
+  apply();
 }
 
 async function showSearch(q) {
   input.value = q; spin();
   const { results } = await api("/api/search?q=" + encodeURIComponent(q));
   if (!results.length) return void (main.innerHTML = `<div class="empty"><div class="big">🔍</div><p>Nada encontrado para <b>${esc(q)}</b>.</p></div>`);
-  main.innerHTML = `<div class="status">${results.length} resultado(s) para <b>${esc(q)}</b></div>` + results.map(cardHTML).join("");
-  wireCards();
+  renderResults(results, `${results.length} resultado(s) para <b>${esc(q)}</b>`);
 }
 
 async function showVehicle(name) {
   input.value = name; spin();
   const { results } = await api("/api/vehicle/parts?name=" + encodeURIComponent(name));
   if (!results.length) return void (main.innerHTML = `<div class="empty"><div class="big">🚗</div><p>Nenhuma peça achada para <b>${esc(name)}</b>.</p></div>`);
-  main.innerHTML = `<div class="status">${results.length} peça(s) que atendem <b>${esc(name)}</b></div>` + results.map(cardHTML).join("");
-  wireCards();
+  renderResults(results, `${results.length} peça(s) que atendem <b>${esc(name)}</b>`);
 }
 
 async function showDetail(id) {
@@ -155,19 +197,41 @@ async function showDetail(id) {
   if (sp.length) html += `<div class="section"><h3>Dimensões &amp; técnicas <span class="n">${sp.length}</span></h3><div class="grid">` +
     sp.map(s => `<div class="spec"><div class="k">${esc(s.description || s.category)}</div><div class="v">${esc(s.value)}</div></div>`).join("") + `</div></div>`;
 
+  const brandNames = Object.keys(byBrand).sort();
   if (vs.length) {
-    html += `<div class="section"><h3>Veículos atendidos <span class="n">${vs.length}</span></h3>`;
-    for (const b of Object.keys(byBrand).sort()) {
-      const list = byBrand[b];
-      html += `<div class="vehbrand"><div class="bname">${esc(b)} <span class="n">${list.length}</span></div>` +
-        list.slice(0, 40).map(v => `<div class="veh"><span class="m">${esc(v.name || "")} ${esc(v.model || "")}</span>
-          ${(v.engine_name || v.engine_config) ? `<div class="e">${esc([v.engine_name, v.engine_config].filter(Boolean).join(" · "))}</div>` : ""}</div>`).join("") +
-        (list.length > 40 ? `<div class="e" style="margin:2px">+${list.length - 40} outros</div>` : "") + `</div>`;
-    }
-    html += `</div>`;
+    html += `<div class="section">
+      <h3>Veículos atendidos <span class="n">${vs.length}</span></h3>
+      <div class="vehmeta"><b>${brandNames.length}</b> marca(s) de veículos atendida(s)</div>
+      <div class="resbar">
+        <select class="selbox" id="vehbrandsel">
+          ${brandNames.map(b => `<option value="${esc(b)}">${esc(b)} (${byBrand[b].length})</option>`).join("")}
+        </select>
+      </div>
+      <div class="vehscroll" id="vehscroll"></div>
+      <div class="status subcount" id="vehcount"></div>
+    </div>`;
   }
   main.innerHTML = html;
   window.scrollTo(0, 0);
+
+  // combo de marca de veículo: mostra a lista da marca escolhida (1ª pré-selecionada),
+  // com limite e barra de rolagem.
+  const vsel = $("#vehbrandsel");
+  if (vsel) {
+    const VLIMIT = 80;
+    const box = $("#vehscroll"), vc = $("#vehcount");
+    const vehItem = v => `<div class="veh"><span class="m">${esc(v.name || "")} ${esc(v.model || "")}</span>
+      ${(v.engine_name || v.engine_config) ? `<div class="e">${esc([v.engine_name, v.engine_config].filter(Boolean).join(" · "))}</div>` : ""}</div>`;
+    const renderVeh = () => {
+      const b = vsel.value, list = byBrand[b] || [];
+      box.innerHTML = list.slice(0, VLIMIT).map(vehItem).join("");
+      vc.textContent = list.length > VLIMIT
+        ? `mostrando ${VLIMIT} de ${list.length} veículo(s) — ${b}`
+        : `${list.length} veículo(s) — ${b}`;
+    };
+    vsel.addEventListener("change", renderVeh);
+    renderVeh();
+  }
 }
 
 /* ---------- stats no rodapé ---------- */
