@@ -6,9 +6,18 @@ ML. Assim geramos links para as milhares de peças sem depender da API (que hoje
 exige OAuth). Config abaixo é do afiliado JAYMAN.
 """
 
+import os
 from urllib.parse import quote
 
 from . import ml_api, ml_cache
+
+# Seção "Comprar" (afiliado Mercado Livre) DESLIGADA por padrão: o programa de
+# afiliados do ML não atribui comissão para links de busca — a estrutura atual não
+# monetiza, e mandar tráfego de graça pro ML trabalha contra o produto (o caminho é
+# reter o usuário para cotação/lead-gen e B2B). O código fica intacto para religar
+# em uma linha quando houver monetização real (API oficial de Afiliados, multi-loja
+# ou cotação). Religue com a variável de ambiente ACHAPECA_BUY=1.
+BUY_ENABLED = os.getenv("ACHAPECA_BUY", "0") == "1"
 
 # credenciais de afiliado (públicas nos links; não são segredo). Fonte: .env via ml_api.
 ML_MATT_TOOL = ml_api.MATT_TOOL or "47871976"
@@ -38,7 +47,12 @@ def buy_section(part: dict) -> dict:
     própria foi abandonado: o anti-bot (DataDome) loga, detecta a automação e
     derruba a sessão. Se um dia um ACESSO PAGO (proxy/anti-bot ou API de dados)
     popular ml_cache por grupo, os cards com preço aparecem aqui automaticamente.
+
+    Desligada por padrão (BUY_ENABLED) — ver comentário no topo do módulo.
     """
+    if not BUY_ENABLED:
+        return {"products": [], "search_links": []}
+
     brand = part.get("brand") or ""
     grp = part.get("product_group") or ""
 
