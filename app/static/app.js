@@ -9,7 +9,13 @@ const api = async u => (await fetch(u)).json();
 
 /* ---------- roteamento por hash ---------- */
 window.addEventListener("hashchange", route);
-window.addEventListener("DOMContentLoaded", () => { loadStats(); route(); });
+window.addEventListener("DOMContentLoaded", () => {
+  loadStats();
+  // ao (re)carregar a página, começa sempre na home — não restaura a busca/filtro
+  // anterior. A navegação por hash segue funcionando dentro da sessão (hashchange).
+  if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+  showHome();
+});
 
 function route() {
   const h = decodeURIComponent(location.hash.slice(1));
@@ -170,8 +176,8 @@ async function showDetail(id) {
       <div class="chips">${chips.map(c => `<span class="chip">${esc(c)}</span>`).join("")}</div>
     </div>`;
 
-  // ---- cotação (lead) ----
-  html += `<div class="cotacao" id="cotacao">
+  // ---- cotação (lead) — só quando habilitada (ACHAPECA_QUOTE=1) ----
+  if (d.quote_enabled) html += `<div class="cotacao" id="cotacao">
     <button class="cta-cot" id="cotBtn">💬 Pedir cotação<span>receba preços de lojas — sem compromisso</span></button>
     <form class="cotform" id="cotForm" hidden>
       <input id="cotHp" class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" placeholder="Deixe em branco">

@@ -40,6 +40,11 @@ def _env_val(key, default=""):
 
 ADMIN_TOKEN = _env_val("ACHAPECA_ADMIN_TOKEN", "")
 
+# Cotação (botão "Pedir cotação" no site) DESLIGADA por padrão — fica oculta
+# enquanto não há canal de entrega/atendimento funcionando. Ligue com
+# ACHAPECA_QUOTE=1 no .env quando o WhatsApp/roteamento estiver ativo.
+QUOTE_ENABLED = _env_val("ACHAPECA_QUOTE", "") == "1"
+
 
 def _check_admin(token: str):
     if not ADMIN_TOKEN:
@@ -69,6 +74,7 @@ def api_part(pid: str):
     if not d:
         raise HTTPException(404, "peça não encontrada")
     d["buy"] = affiliate.buy_section(d)
+    d["quote_enabled"] = QUOTE_ENABLED
     return d
 
 
@@ -124,6 +130,8 @@ def _rate_ok(ip: str) -> bool:
 
 @app.post("/api/quote")
 def api_quote(q: QuoteIn, request: Request, background: BackgroundTasks):
+    if not QUOTE_ENABLED:
+        raise HTTPException(404, "cotação indisponível")
     # honeypot: se veio preenchido, é bot — falso sucesso, não grava nem gasta rate.
     if (q.website or "").strip():
         return {"ok": True, "id": 0}
