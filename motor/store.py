@@ -91,9 +91,10 @@ def _now():
 class Store:
     def __init__(self, path=DEFAULT_DB):
         self.path = str(path)
-        self.conn = sqlite3.connect(self.path)
+        self.conn = sqlite3.connect(self.path, timeout=15)
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA foreign_keys = ON")
+        self.conn.execute("PRAGMA busy_timeout = 15000")  # espera lock em vez de erro
         self.conn.executescript(SCHEMA)
         self.conn.commit()
 

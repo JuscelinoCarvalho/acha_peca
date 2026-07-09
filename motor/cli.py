@@ -10,8 +10,14 @@ import argparse
 from collections import Counter
 
 from .ingest import ingest_terms, sweep_catalogs, KNOWN_CATALOGS
-from .session import DEFAULT_CATALOG
+from .session import DEFAULT_CATALOG, FragaSession
+from .http_session import HttpFragaSession
 from .store import Store
+
+
+def _session_cls(args):
+    """Escolhe a sessão: --http (urllib, leve) ou padrão (Playwright)."""
+    return HttpFragaSession if getattr(args, "http", False) else FragaSession
 
 
 def _cmd_ingest(args):
@@ -22,6 +28,7 @@ def _cmd_ingest(args):
         max_items=args.max,
         page_size=args.page_size,
         headless=not args.headed,
+        session_cls=_session_cls(args),
     )
     total = sum(res.values())
     print(f"\n== ingestão concluída: {total} peças em {len(res)} termo(s) ==")
@@ -35,6 +42,7 @@ def _cmd_sweep(args):
         max_items=args.max,
         page_size=args.page_size,
         headless=not args.headed,
+        session_cls=_session_cls(args),
     )
     print("\n== varredura concluída ==")
     total = 0
@@ -106,6 +114,8 @@ def main(argv=None):
     pi.add_argument("--max", type=int, default=None, help="teto de peças por termo")
     pi.add_argument("--page-size", type=int, default=50, help="itens por página (máx 50)")
     pi.add_argument("--headed", action="store_true", help="mostra o navegador")
+    pi.add_argument("--http", action="store_true",
+                    help="usa sessão HTTP leve (urllib, sem Chromium)")
     pi.set_defaults(func=_cmd_ingest)
 
     pw = sub.add_parser("sweep", help="varre o catálogo INTEIRO (query vazia)")
@@ -114,6 +124,8 @@ def main(argv=None):
     pw.add_argument("--max", type=int, default=None, help="teto de peças por catálogo")
     pw.add_argument("--page-size", type=int, default=50, help="itens por página (máx 50)")
     pw.add_argument("--headed", action="store_true", help="mostra o navegador")
+    pw.add_argument("--http", action="store_true",
+                    help="usa sessão HTTP leve (urllib, sem Chromium)")
     pw.set_defaults(func=_cmd_sweep)
 
     ps = sub.add_parser("show", help="mostra uma peça do banco")

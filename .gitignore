@@ -5,6 +5,7 @@
 
 # Databases (too large for GitHub, regenerable)
 *.db
+*.db.bak*
 *.sqlite
 *.sqlite3
 
