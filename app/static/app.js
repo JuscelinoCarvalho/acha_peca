@@ -2,6 +2,7 @@
 const $ = s => document.querySelector(s);
 const main = $("#main"), input = $("#q"), suggestBox = $("#suggest"), hint = $("#hint");
 let mode = "peca";
+let CFG = { ads: null };
 const esc = s => (s == null ? "" : String(s)).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 /* minúsculas sem acento — filtro acento-insensível no cliente */
 const ua = s => (s == null ? "" : String(s)).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -11,11 +12,30 @@ const api = async u => (await fetch(u)).json();
 window.addEventListener("hashchange", route);
 window.addEventListener("DOMContentLoaded", () => {
   loadStats();
+  loadConfig();
   // ao (re)carregar a página, começa sempre na home — não restaura a busca/filtro
   // anterior. A navegação por hash segue funcionando dentro da sessão (hashchange).
   if (location.hash) history.replaceState(null, "", location.pathname + location.search);
   showHome();
 });
+
+/* ---------- config / anúncios (AdSense) ---------- */
+async function loadConfig() {
+  try { CFG = await api("/api/config"); } catch (e) { }
+  mountAds();  // caso um render tenha ocorrido antes da config chegar
+}
+function adUnit(slot) {
+  if (!(CFG.ads && CFG.ads.client && slot)) return "";
+  return `<ins class="adsbygoogle adslot" style="display:block" data-ad-client="${esc(CFG.ads.client)}"`
+    + ` data-ad-slot="${esc(slot)}" data-ad-format="auto" data-full-width-responsive="true"></ins>`;
+}
+function mountAds() {
+  if (!(CFG.ads && CFG.ads.client)) return;
+  document.querySelectorAll("ins.adsbygoogle:not([data-done])").forEach(el => {
+    el.setAttribute("data-done", "1");
+    try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) { }
+  });
+}
 
 function route() {
   const h = decodeURIComponent(location.hash.slice(1));
@@ -110,7 +130,8 @@ function renderResults(results, statusText) {
       </select>
     </div>
     <div class="reslist" id="reslist"></div>
-    <div class="status subcount" id="rescount"></div>`;
+    <div class="status subcount" id="rescount"></div>
+    ${adUnit(CFG.ads && CFG.ads.slot_results)}`;
 
   const listEl = $("#reslist"), countEl = $("#rescount");
   const fInput = $("#resfilter"), bSel = $("#resbrand");
@@ -136,6 +157,7 @@ function renderResults(results, statusText) {
   fInput.addEventListener("input", apply);
   bSel.addEventListener("change", apply);
   apply();
+  mountAds();
 }
 
 async function showSearch(q) {
@@ -234,8 +256,10 @@ async function showDetail(id) {
       <div class="status subcount" id="vehcount"></div>
     </div>`;
   }
+  html += adUnit(CFG.ads && CFG.ads.slot_detail);
   main.innerHTML = html;
   window.scrollTo(0, 0);
+  mountAds();
 
   // cotação: abre o form e envia o lead (POST /api/quote)
   const cotBtn = $("#cotBtn"), cotForm = $("#cotForm");

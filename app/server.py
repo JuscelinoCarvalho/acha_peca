@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -45,6 +45,13 @@ ADMIN_TOKEN = _env_val("ACHAPECA_ADMIN_TOKEN", "")
 # ACHAPECA_QUOTE=1 no .env quando o WhatsApp/roteamento estiver ativo.
 QUOTE_ENABLED = _env_val("ACHAPECA_QUOTE", "") == "1"
 
+# AdSense (monetização passiva). Preencha no .env quando aprovado no Google:
+#   ADS_CLIENT="ca-pub-XXXXXXXXXXXXXXXX"  -> carrega o script (Auto Ads já funciona)
+#   ADS_SLOT_RESULTS / ADS_SLOT_DETAIL    -> IDs de blocos manuais (opcional)
+ADS_CLIENT = _env_val("ADS_CLIENT", "")
+ADS_SLOT_RESULTS = _env_val("ADS_SLOT_RESULTS", "")
+ADS_SLOT_DETAIL = _env_val("ADS_SLOT_DETAIL", "")
+
 
 def _check_admin(token: str):
     if not ADMIN_TOKEN:
@@ -56,6 +63,17 @@ def _check_admin(token: str):
 @app.get("/api/health")
 def health():
     return {"ok": True}
+
+
+@app.get("/api/config")
+def api_config():
+    """Config pública para o front (ex.: AdSense). Sem segredos."""
+    ads = None
+    if ADS_CLIENT:
+        ads = {"client": ADS_CLIENT,
+               "slot_results": ADS_SLOT_RESULTS or None,
+               "slot_detail": ADS_SLOT_DETAIL or None}
+    return {"ads": ads}
 
 
 @app.get("/api/stats")
@@ -280,9 +298,21 @@ if STATIC.exists():
     app.mount("/assets", StaticFiles(directory=STATIC), name="assets")
 
 
+def _index_html():
+    """index.html com o loader do AdSense injetado (quando ADS_CLIENT definido).
+    Injetar no HTML servido deixa o script visível ao crawler do Google (validação
+    da conta) e habilita Auto Ads sem depender de JS."""
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+    if ADS_CLIENT:
+        tag = ('<script async src="https://pagead2.googlesyndication.com/pagead/js/'
+               f'adsbygoogle.js?client={ADS_CLIENT}" crossorigin="anonymous"></script>\n')
+        html = html.replace('<link rel="stylesheet"', tag + '<link rel="stylesheet"', 1)
+    return HTMLResponse(html)
+
+
 @app.get("/")
 def index():
-    return FileResponse(STATIC / "index.html")
+    return _index_html()
 
 
 @app.get("/sw.js")
@@ -300,4 +330,4 @@ def spa_fallback(path: str):
     f = STATIC / path
     if f.is_file():
         return FileResponse(f)
-    return FileResponse(STATIC / "index.html")
+    return _index_html()

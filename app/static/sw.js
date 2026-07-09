@@ -1,7 +1,7 @@
 /* Service worker do acha peça (PWA).
    - App shell (estáticos) em cache-first para abrir offline e instantâneo.
    - Chamadas /api/* em network-first com fallback ao cache (último resultado). */
-const VERSION = "achapeca-v7";
+const VERSION = "achapeca-v8";
 const SHELL = ["/", "/assets/style.css", "/assets/app.js", "/assets/icon.svg", "/manifest.json"];
 
 self.addEventListener("install", e => {
@@ -14,6 +14,7 @@ self.addEventListener("fetch", e => {
   const { request } = e;
   if (request.method !== "GET") return;
   const url = new URL(request.url);
+  if (url.origin !== location.origin) return;  // não intercepta terceiros (AdSense, Google)
   if (url.pathname.startsWith("/api/")) {
     e.respondWith(
       fetch(request).then(res => {
