@@ -174,6 +174,7 @@ async function showDetail(id) {
   html += `<div class="cotacao" id="cotacao">
     <button class="cta-cot" id="cotBtn">💬 Pedir cotação<span>receba preços de lojas — sem compromisso</span></button>
     <form class="cotform" id="cotForm" hidden>
+      <input id="cotHp" class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" placeholder="Deixe em branco">
       <input id="cotZap" inputmode="tel" autocomplete="tel" placeholder="WhatsApp com DDD *">
       <input id="cotNome" autocomplete="name" placeholder="Seu nome">
       <div class="cotrow2">
@@ -253,14 +254,15 @@ async function showDetail(id) {
             part_id: d.id, part_number: d.part_number, brand: d.brand,
             product_group: d.product_group, name: $("#cotNome").value,
             whatsapp: zap, city: $("#cotCidade").value,
-            quantity: parseInt($("#cotQtd").value) || null, note: $("#cotObs").value
+            quantity: parseInt($("#cotQtd").value) || null, note: $("#cotObs").value,
+            website: $("#cotHp").value
           })
         });
         const j = await r.json().catch(() => ({}));
-        if (!r.ok || !j.ok) throw new Error(j.detail || "falha");
+        if (!r.ok || !j.ok) throw new Error(j.detail || "Não deu para enviar agora. Tente de novo.");
         cotForm.innerHTML = `<div class="cotok">✅ Pedido recebido!<br>Em breve entramos em contato pelo WhatsApp com as melhores ofertas para <b>${esc(d.part_number)}</b>.</div>`;
       } catch (err) {
-        msg.className = "cotmsg err"; msg.textContent = "Não deu para enviar agora. Tente de novo.";
+        msg.className = "cotmsg err"; msg.textContent = err.message || "Não deu para enviar agora. Tente de novo.";
         send.disabled = false; send.textContent = "Enviar pedido de cotação";
       }
     };

@@ -93,18 +93,47 @@ class QuoteIn(BaseModel):
     city: str | None = None
     quantity: int | None = None
     note: str | None = None
+    website: str | None = None  # honeypot: humano deixa vazio; bot preenche
 
 
 def _clean(s, n=200):
     return (s or "").strip()[:n] or None
 
 
+def _client_ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.headers.get("x-real-ip") or (request.client.host if request.client else "?")
+
+
+# rate-limit por IP, baseado no leads.db (compartilhado entre workers).
+# Camadas: rajada (5 em 5 min) e teto (20 em 1 h).
+_RL_WINDOW, _RL_MAX = 3600, 20
+_RL_BURST_WIN, _RL_BURST_MAX = 300, 5
+
+
+def _rate_ok(ip: str) -> bool:
+    if leads.recent_count_by_ip(ip, _RL_BURST_WIN) >= _RL_BURST_MAX:
+        return False
+    if leads.recent_count_by_ip(ip, _RL_WINDOW) >= _RL_MAX:
+        return False
+    return True
+
+
 @app.post("/api/quote")
 def api_quote(q: QuoteIn, request: Request):
+    # honeypot: se veio preenchido, é bot — falso sucesso, não grava nem gasta rate.
+    if (q.website or "").strip():
+        return {"ok": True, "id": 0}
     digits = re.sub(r"\D", "", q.whatsapp or "")
     if not (10 <= len(digits) <= 13):
         raise HTTPException(400, "Informe um WhatsApp válido com DDD.")
+    ip = _client_ip(request)
+    if not _rate_ok(ip):
+        raise HTTPException(429, "Muitos pedidos deste dispositivo. Tente novamente em alguns minutos.")
     qid = leads.add_quote({
+        "ip": ip,
         "part_id": _clean(q.part_id, 80),
         "part_number": _clean(q.part_number, 80),
         "brand": _clean(q.brand, 80),

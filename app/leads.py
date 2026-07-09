@@ -25,10 +25,12 @@ CREATE TABLE IF NOT EXISTS quote_request(
   quantity      INTEGER,
   note          TEXT,
   status        TEXT DEFAULT 'novo',
-  user_agent    TEXT
+  user_agent    TEXT,
+  ip            TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_quote_created ON quote_request(created_at);
 CREATE INDEX IF NOT EXISTS ix_quote_status  ON quote_request(status);
+CREATE INDEX IF NOT EXISTS ix_quote_ip      ON quote_request(ip, created_at);
 """
 
 
@@ -44,6 +46,10 @@ def init():
     c = _conn()
     try:
         c.executescript(_SCHEMA)
+        # migração idempotente: adiciona coluna ip em bancos antigos
+        cols = [r[1] for r in c.execute("PRAGMA table_info(quote_request)")]
+        if "ip" not in cols:
+            c.execute("ALTER TABLE quote_request ADD COLUMN ip TEXT")
         c.commit()
     finally:
         c.close()
@@ -56,13 +62,13 @@ def add_quote(data: dict) -> int:
         cur = c.execute(
             "INSERT INTO quote_request "
             "(created_at, part_id, part_number, brand, product_group, "
-            " name, whatsapp, city, quantity, note, user_agent) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            " name, whatsapp, city, quantity, note, user_agent, ip) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (time.strftime("%Y-%m-%d %H:%M:%S"),
              data.get("part_id"), data.get("part_number"), data.get("brand"),
              data.get("product_group"), data.get("name"), data.get("whatsapp"),
              data.get("city"), data.get("quantity"), data.get("note"),
-             data.get("user_agent")),
+             data.get("user_agent"), data.get("ip")),
         )
         c.commit()
         return cur.lastrowid
@@ -101,6 +107,20 @@ def counts_by_status() -> dict:
         for r in c.execute("SELECT status, COUNT(*) FROM quote_request GROUP BY status"):
             out[r[0] or "novo"] = r[1]
         return out
+    finally:
+        c.close()
+
+
+def recent_count_by_ip(ip: str, seconds: int) -> int:
+    """Quantos leads deste IP nos últimos `seconds` — base do rate-limit (compartilhado
+    entre workers, pois lê o mesmo leads.db)."""
+    if not ip:
+        return 0
+    thr = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() - seconds))
+    c = _conn()
+    try:
+        return c.execute("SELECT COUNT(*) FROM quote_request WHERE ip=? AND created_at>=?",
+                         (ip, thr)).fetchone()[0]
     finally:
         c.close()
 
