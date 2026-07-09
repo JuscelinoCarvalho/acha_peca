@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Painel de leads — acha peça</title>
+<link rel="stylesheet" href="/assets/style.css">
+<style>
+  .abar{position:sticky;top:0;z-index:10;background:color-mix(in srgb,var(--surface) 82%,transparent);
+    backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+  .awrap{max-width:900px;margin:0 auto;padding:14px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .awrap h1{font-size:18px;margin:0;font-weight:800;letter-spacing:-.3px}
+  .awrap .sp{flex:1}
+  .abtn{background:var(--surface-2);border:1px solid var(--line-2);color:var(--text);
+    font-weight:700;font-size:13px;padding:8px 12px;border-radius:10px;cursor:pointer;text-decoration:none}
+  .abtn:hover{border-color:var(--brand)}
+  .gate{max-width:380px;margin:14vh auto;padding:24px;background:var(--surface);border:1px solid var(--line-2);
+    border-radius:16px;box-shadow:var(--shadow);text-align:center}
+  .gate h2{margin:0 0 4px;font-size:19px}.gate p{color:var(--muted);font-size:13px;margin:0 0 16px}
+  .gate input{width:100%;padding:12px 14px;font-size:15px;border-radius:10px;border:1px solid var(--line-2);
+    background:var(--surface-2);color:var(--text);outline:none;margin-bottom:10px}
+  .gate input:focus{border-color:var(--brand)}
+  .gate button{width:100%;padding:12px;border:0;border-radius:10px;color:#fff;font-weight:800;cursor:pointer;
+    background:linear-gradient(180deg,var(--brand),var(--brand-2))}
+  .gate .err{color:#ff6b6b;font-size:13px;min-height:18px;margin-top:8px}
+  main{max-width:900px;margin:0 auto;padding:16px}
+  .stats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .stat{background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:8px 12px}
+  .stat b{font-size:19px;font-variant-numeric:tabular-nums}.stat span{color:var(--muted);font-size:11.5px;
+    text-transform:uppercase;letter-spacing:.5px;display:block}
+  .filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+  .fchip{background:var(--surface-2);border:1px solid var(--line);color:var(--muted);font-weight:700;
+    font-size:12.5px;padding:6px 12px;border-radius:20px;cursor:pointer}
+  .fchip.on{background:linear-gradient(180deg,var(--brand),var(--brand-2));color:#fff;border-color:var(--brand)}
+  .lead{background:linear-gradient(180deg,var(--surface),var(--surface-2));border:1px solid var(--line);
+    border-radius:14px;padding:14px 16px;margin-bottom:11px;box-shadow:var(--shadow)}
+  .lead .l1{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
+  .lead .when{color:var(--faint);font-size:12px}
+  .lead .pn{font-family:var(--mono);font-weight:700}
+  .lead .grp{color:var(--muted);font-size:13px;margin:2px 0 10px}
+  .lead .who{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13.5px;margin-bottom:10px}
+  .lead .who .k{color:var(--faint)}
+  .lead .note{color:var(--muted);font-size:13px;background:var(--surface-3);border:1px solid var(--line);
+    border-radius:9px;padding:8px 11px;margin-bottom:10px}
+  .lead .acts{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+  .wa{display:inline-flex;align-items:center;gap:7px;background:#25d366;color:#062e15;font-weight:800;
+    font-size:14px;padding:9px 14px;border-radius:10px;text-decoration:none}
+  .wa:hover{filter:brightness(1.05)}
+  .lead select{padding:8px 30px 8px 11px;font-size:13px;font-weight:700;border-radius:9px;
+    border:1px solid var(--line-2);background:var(--surface);color:var(--text);cursor:pointer;-webkit-appearance:none;appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%238fa3b8' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 10px center}
+  .st-novo{color:var(--brand)}.empty{text-align:center;color:var(--muted);padding:50px 20px}
+</style>
+</head>
+<body>
+<div class="abar"><div class="awrap">
+  <h1>📋 Leads — acha peça</h1><div class="sp"></div>
+  <a class="abtn" id="csv" href="#" hidden>⬇ CSV</a>
+  <button class="abtn" id="reload" hidden>↻ Atualizar</button>
+  <button class="abtn" id="logout" hidden>Sair</button>
+</div></div>
+
+<div id="gate" class="gate">
+  <h2>Painel de leads</h2>
+  <p>Acesso restrito. Informe o token de admin.</p>
+  <input id="tok" type="password" placeholder="Token de admin" autocomplete="off">
+  <button id="enter">Entrar</button>
+  <div class="err" id="gerr"></div>
+</div>
+
+<main id="app" hidden>
+  <div class="stats" id="stats"></div>
+  <div class="filters" id="filters"></div>
+  <div id="list"></div>
+</main>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const esc = s => (s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const KEY = "achapeca_admin_token";
+let token = localStorage.getItem(KEY) || "";
+let filter = "";
+const STATUSES = ["novo","contatado","cotado","fechado","descartado"];
+
+function waLink(l){
+  let d = String(l.whatsapp||"").replace(/\D/g,"");
+  if(d.length<=11) d = "55"+d;                 // DDI Brasil
+  const msg = `Olá${l.name?" "+l.name:""}! Sobre sua cotação da peça ${l.part_number||""} ${l.brand||""} no acha peça — temos uma oferta pra você.`;
+  return `https://wa.me/${d}?text=${encodeURIComponent(msg)}`;
+}
+
+async function api(url, opts){
+  const r = await fetch(url + (url.includes("?")?"&":"?") + "token=" + encodeURIComponent(token), opts);
+  if(r.status===401) throw new Error("401");
+  return r;
+}
+
+async function load(){
+  let data;
+  try{
+    const r = await api("/api/admin/leads" + (filter?("?status="+filter):""));
+    if(!r.ok) throw new Error(r.status);
+    data = await r.json();
+  }catch(e){
+    if(String(e.message)==="401"){ logout("Token inválido."); return; }
+    $("#list").innerHTML = `<div class="empty">Erro ao carregar (${esc(e.message)}).</div>`; return;
+  }
+  showApp();
+  const c = data.counts||{};
+  $("#stats").innerHTML = [["total","Total"],["novo","Novos"],["contatado","Contatados"],["cotado","Cotados"],["fechado","Fechados"]]
+    .map(([k,lbl])=>`<div class="stat"><b>${c[k]||0}</b><span>${lbl}</span></div>`).join("");
+  $("#filters").innerHTML = [["","Todos"]].concat(STATUSES.map(s=>[s,s]))
+    .map(([v,lbl])=>`<button class="fchip ${filter===v?"on":""}" data-f="${v}">${esc(lbl)}</button>`).join("");
+  $("#filters").querySelectorAll(".fchip").forEach(b=>b.onclick=()=>{filter=b.dataset.f;load();});
+  const leads = data.leads||[];
+  $("#list").innerHTML = leads.length ? leads.map(cardHTML).join("")
+    : `<div class="empty">Nenhum lead${filter?" com status "+esc(filter):""} ainda.</div>`;
+  $("#list").querySelectorAll("select[data-id]").forEach(sel=>sel.onchange=()=>setStatus(sel.dataset.id, sel.value, sel));
+  $("#csv").href = "/api/admin/leads.csv?token=" + encodeURIComponent(token);
+}
+
+function cardHTML(l){
+  const opts = STATUSES.map(s=>`<option value="${s}"${(l.status||"novo")===s?" selected":""}>${s}</option>`).join("");
+  return `<div class="lead">
+    <div class="l1"><span class="when">${esc(l.created_at||"")}</span>
+      <select data-id="${l.id}" class="st-${esc(l.status||"novo")}">${opts}</select></div>
+    <div><span class="pn">${esc(l.part_number||"—")}</span>${l.brand?` · <b>${esc(l.brand)}</b>`:""}</div>
+    <div class="grp">${esc(l.product_group||"")}</div>
+    <div class="who">
+      ${l.name?`<span><span class="k">nome:</span> ${esc(l.name)}</span>`:""}
+      ${l.city?`<span><span class="k">cidade:</span> ${esc(l.city)}</span>`:""}
+      ${l.quantity?`<span><span class="k">qtde:</span> ${esc(l.quantity)}</span>`:""}
+      <span><span class="k">zap:</span> ${esc(l.whatsapp||"")}</span>
+    </div>
+    ${l.note?`<div class="note">${esc(l.note)}</div>`:""}
+    <div class="acts"><a class="wa" href="${esc(waLink(l))}" target="_blank" rel="noopener">💬 WhatsApp</a></div>
+  </div>`;
+}
+
+async function setStatus(id, status, sel){
+  sel.className = "st-"+status;
+  try{
+    const r = await api(`/api/admin/leads/${id}/status`, {method:"POST",
+      headers:{"content-type":"application/json"}, body:JSON.stringify({status})});
+    if(!r.ok) throw 0;
+    load();  // atualiza contadores
+  }catch(e){ alert("Não deu para atualizar o status."); }
+}
+
+function showApp(){ $("#gate").hidden=true; $("#app").hidden=false;
+  ["#csv","#reload","#logout"].forEach(s=>$(s).hidden=false); }
+function logout(msg){ localStorage.removeItem(KEY); token=""; location.reload(); if(msg) $("#gerr").textContent=msg; }
+
+$("#enter").onclick = ()=>{ token = $("#tok").value.trim(); if(!token) return;
+  localStorage.setItem(KEY, token); load(); };
+$("#tok").addEventListener("keydown", e=>{ if(e.key==="Enter") $("#enter").click(); });
+$("#reload").onclick = ()=>load();
+$("#logout").onclick = ()=>logout();
+
+if(token) load();
+</script>
+</body>
+</html>

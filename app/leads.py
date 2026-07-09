@@ -76,3 +76,42 @@ def count() -> int:
         return c.execute("SELECT COUNT(*) FROM quote_request").fetchone()[0]
     finally:
         c.close()
+
+
+VALID_STATUS = ("novo", "contatado", "cotado", "fechado", "descartado")
+
+
+def list_leads(status: str = None, limit: int = 2000) -> list:
+    c = _conn()
+    try:
+        if status and status in VALID_STATUS:
+            rows = c.execute("SELECT * FROM quote_request WHERE status=? "
+                             "ORDER BY id DESC LIMIT ?", (status, limit))
+        else:
+            rows = c.execute("SELECT * FROM quote_request ORDER BY id DESC LIMIT ?", (limit,))
+        return [dict(r) for r in rows]
+    finally:
+        c.close()
+
+
+def counts_by_status() -> dict:
+    c = _conn()
+    try:
+        out = {"total": c.execute("SELECT COUNT(*) FROM quote_request").fetchone()[0]}
+        for r in c.execute("SELECT status, COUNT(*) FROM quote_request GROUP BY status"):
+            out[r[0] or "novo"] = r[1]
+        return out
+    finally:
+        c.close()
+
+
+def set_status(lead_id: int, status: str) -> bool:
+    if status not in VALID_STATUS:
+        return False
+    c = _conn()
+    try:
+        cur = c.execute("UPDATE quote_request SET status=? WHERE id=?", (status, lead_id))
+        c.commit()
+        return cur.rowcount > 0
+    finally:
+        c.close()

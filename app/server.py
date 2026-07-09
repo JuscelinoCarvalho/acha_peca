@@ -4,11 +4,15 @@ Rotas /api/* devolvem JSON; o resto serve os estáticos do SPA (com fallback
 para index.html, para funcionar como app de página única).
 """
 
+import csv
+import hmac
+import io
+import os
 import re
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -21,6 +25,26 @@ app = FastAPI(title="acha_peça API", version="1.0")
 STATIC = Path(__file__).resolve().parent / "static"
 
 leads.init()
+
+
+def _env_val(key, default=""):
+    """Lê uma chave do .env (o app não usa os.environ do systemd) c/ fallback."""
+    envf = Path(__file__).resolve().parent.parent / ".env"
+    if envf.exists():
+        m = re.search(rf'^{key}\s*=\s*"?([^"\n]*)"?', envf.read_text(), re.M)
+        if m:
+            return m.group(1).strip()
+    return os.getenv(key, default)
+
+
+ADMIN_TOKEN = _env_val("ACHAPECA_ADMIN_TOKEN", "")
+
+
+def _check_admin(token: str):
+    if not ADMIN_TOKEN:
+        raise HTTPException(503, "Painel admin desativado (defina ACHAPECA_ADMIN_TOKEN no .env).")
+    if not token or not hmac.compare_digest(token, ADMIN_TOKEN):
+        raise HTTPException(401, "não autorizado")
 
 
 @app.get("/api/health")
@@ -93,6 +117,44 @@ def api_quote(q: QuoteIn, request: Request):
         "user_agent": _clean(request.headers.get("user-agent"), 300),
     })
     return {"ok": True, "id": qid}
+
+
+# ---- painel de leads (admin, protegido por token) ----------------------
+class StatusIn(BaseModel):
+    status: str
+
+
+@app.get("/api/admin/leads")
+def api_admin_leads(token: str = "", status: str = None):
+    _check_admin(token)
+    return {"leads": leads.list_leads(status=status), "counts": leads.counts_by_status()}
+
+
+@app.post("/api/admin/leads/{lead_id}/status")
+def api_admin_lead_status(lead_id: int, payload: StatusIn, token: str = ""):
+    _check_admin(token)
+    if not leads.set_status(lead_id, payload.status):
+        raise HTTPException(400, "lead ou status inválido")
+    return {"ok": True}
+
+
+@app.get("/api/admin/leads.csv")
+def api_admin_leads_csv(token: str = ""):
+    _check_admin(token)
+    cols = ["id", "created_at", "status", "part_number", "brand", "product_group",
+            "name", "whatsapp", "city", "quantity", "note"]
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(cols)
+    for r in leads.list_leads():
+        w.writerow([r.get(c, "") for c in cols])
+    return PlainTextResponse(buf.getvalue(), media_type="text/csv",
+                             headers={"Content-Disposition": "attachment; filename=leads.csv"})
+
+
+@app.get("/admin")
+def admin_page():
+    return FileResponse(STATIC / "admin.html")
 
 
 # ---- estáticos / SPA ---------------------------------------------------
