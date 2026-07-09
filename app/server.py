@@ -11,7 +11,7 @@ import os
 import re
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from . import db
 from . import affiliate
 from . import leads
+from . import notify
 
 app = FastAPI(title="acha_peça API", version="1.0")
 
@@ -122,7 +123,7 @@ def _rate_ok(ip: str) -> bool:
 
 
 @app.post("/api/quote")
-def api_quote(q: QuoteIn, request: Request):
+def api_quote(q: QuoteIn, request: Request, background: BackgroundTasks):
     # honeypot: se veio preenchido, é bot — falso sucesso, não grava nem gasta rate.
     if (q.website or "").strip():
         return {"ok": True, "id": 0}
@@ -132,7 +133,7 @@ def api_quote(q: QuoteIn, request: Request):
     ip = _client_ip(request)
     if not _rate_ok(ip):
         raise HTTPException(429, "Muitos pedidos deste dispositivo. Tente novamente em alguns minutos.")
-    qid = leads.add_quote({
+    lead = {
         "ip": ip,
         "part_id": _clean(q.part_id, 80),
         "part_number": _clean(q.part_number, 80),
@@ -144,7 +145,10 @@ def api_quote(q: QuoteIn, request: Request):
         "quantity": q.quantity if (q.quantity and 0 < q.quantity < 100000) else None,
         "note": _clean(q.note, 500),
         "user_agent": _clean(request.headers.get("user-agent"), 300),
-    })
+    }
+    qid = leads.add_quote(lead)
+    # roteamento: notifica os canais configurados APÓS responder (não bloqueia).
+    background.add_task(notify.notify_new_lead, dict(lead, id=qid))
     return {"ok": True, "id": qid}
 
 
@@ -179,6 +183,27 @@ def api_admin_leads_csv(token: str = ""):
         w.writerow([r.get(c, "") for c in cols])
     return PlainTextResponse(buf.getvalue(), media_type="text/csv",
                              headers={"Content-Disposition": "attachment; filename=leads.csv"})
+
+
+@app.get("/api/admin/notify-status")
+def api_admin_notify_status(token: str = ""):
+    _check_admin(token)
+    return {"channels": notify.enabled_channels()}
+
+
+@app.get("/api/admin/notify-test")
+def api_admin_notify_test(token: str = ""):
+    """Dispara uma notificação de teste pelos canais ativos."""
+    _check_admin(token)
+    chans = notify.enabled_channels()
+    if not chans:
+        raise HTTPException(400, "Nenhum canal configurado no .env.")
+    notify.notify_new_lead({
+        "part_number": "TESTE-NOTIFY", "brand": "acha peça", "product_group": "teste de roteamento",
+        "name": "Teste", "whatsapp": "11999999999", "city": "—", "quantity": 1,
+        "note": "Notificação de teste do painel.",
+    })
+    return {"ok": True, "channels": chans}
 
 
 @app.get("/admin")
