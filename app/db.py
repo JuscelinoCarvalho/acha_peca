@@ -133,22 +133,35 @@ def part_detail(pid: str):
         return None
     d = dict(p)
     d["old_codes"] = json.loads(d.get("old_codes") or "[]")
+    d["vehicles"] = [dict(r) for r in _C.execute(
+        "SELECT brand, name, model, engine_name, engine_config FROM vehicle "
+        "WHERE product_id = ? ORDER BY brand, name", (pid,))]
+    # inferência por aplicação: peça NÃO-universal que atende UMA só montadora ->
+    # os códigos OE genéricos são (com alta probabilidade) dessa montadora.
+    veh_brands = {(v.get("brand") or "").strip() for v in d["vehicles"] if (v.get("brand") or "").strip()}
+    single_veh_brand = next(iter(veh_brands)) if (len(veh_brands) == 1 and not d.get("universal")) else None
+
     xr = [dict(r) for r in _C.execute(
         "SELECT brand, part_number FROM cross_reference WHERE product_id = ? ORDER BY brand", (pid,))]
-    # enriquecimento: para os OE genéricos, tenta nomear a montadora pelo próprio banco.
+    # enriquecimento: para os OE genéricos, nomeia a montadora. Duas fontes, por confiança:
+    #   1) 'xref' (autoritativo): o mesmo código aparece sob a marca real em outro catálogo;
+    #   2) 'veiculo' (inferido): a peça só serve uma montadora.
     generic_codes = [c["part_number"] for c in xr if (c["brand"] or "").upper() in _GENERIC_XREF_BRANDS]
     resolved = _resolve_automakers(generic_codes) if generic_codes else {}
     for c in xr:
         is_generic = (c["brand"] or "").upper() in _GENERIC_XREF_BRANDS
         c["oem_generic"] = is_generic
-        c["automakers"] = resolved.get(c["part_number"], []) if is_generic else []
+        c["automakers"], c["automaker_source"] = [], None
+        if is_generic:
+            ams = resolved.get(c["part_number"], [])
+            if ams:
+                c["automakers"], c["automaker_source"] = ams, "xref"
+            elif single_veh_brand:
+                c["automakers"], c["automaker_source"] = [single_veh_brand], "veiculo"
     d["cross_references"] = xr
     d["specifications"] = [dict(r) for r in _C.execute(
         "SELECT category, description, value, important FROM specification "
         "WHERE product_id = ? AND value IS NOT NULL AND value <> '' ORDER BY important DESC", (pid,))]
-    d["vehicles"] = [dict(r) for r in _C.execute(
-        "SELECT brand, name, model, engine_name, engine_config FROM vehicle "
-        "WHERE product_id = ? ORDER BY brand, name", (pid,))]
     return d
 
 

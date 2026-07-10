@@ -238,14 +238,16 @@ async function showDetail(id) {
 
   if (xr.length) html += `<div class="section"><h3>Equivalentes / OEM <span class="n">${xr.length}</span></h3>` +
     xr.map(c => {
-      // marca a exibir: montadora inferida > marca real > rótulo genérico honesto
-      let label = c.brand || "OEM", generic = false;
+      // marca a exibir, por confiança: marca real > montadora confirmada (xref) >
+      // montadora provável (por aplicação) > rótulo genérico honesto.
+      let label = c.brand || "OEM", cls = "";
       if (c.oem_generic) {
         const am = c.automakers || [];
-        if (am.length) { label = am.join(" / ") + " · original"; }
-        else { label = "Código original (OEM)"; generic = true; }
+        if (am.length && c.automaker_source === "xref") { label = am.join(" / ") + " · original"; }
+        else if (am.length && c.automaker_source === "veiculo") { label = am.join(" / ") + " · por aplicação"; cls = " infer"; }
+        else { label = "Código original (OEM)"; cls = " gen"; }
       }
-      return `<div class="xref"><span class="brand${generic ? " gen" : ""}">${esc(label)}</span><span class="code">${esc(c.part_number)}</span></div>`;
+      return `<div class="xref"><span class="brand${cls}">${esc(label)}</span><span class="code">${esc(c.part_number)}</span></div>`;
     }).join("") + `</div>`;
 
   if (sp.length) html += `<div class="section"><h3>Dimensões &amp; técnicas <span class="n">${sp.length}</span></h3><div class="grid">` +
