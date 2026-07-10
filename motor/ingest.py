@@ -29,8 +29,13 @@ KNOWN_CATALOGS = [
     "https://corteco.catalogofraga.com.br/",# Corteco ~1.684
     "https://monroe.catalogofraga.com.br/", # Monroe  ~1.304
     "https://kyb.catalogofraga.com.br/",    # KYB     ~1.299
+    "https://victorreinz.catalogofraga.com.br/", # Victor Reinz ~1.564 (juntas 2026-07-10)
     "https://ferodo.catalogofraga.com.br/", # Ferodo    ~346
+    "https://albarus.catalogofraga.com.br/",# Albarus    ~379 (2026-07-10)
+    "https://champion.catalogofraga.com.br/",# Champion   ~268 (2026-07-10)
 ]  # Grandes exigem login (cofap/skf/marelli/wega/nakata/taranto/viemar/...) — TODO.
+# Sondagem 2026-07-10: além destes, só victorreinz/albarus/champion estavam
+# abertos; o resto das marcas grandes pede login. Ver [[achapeca-oem-enrich]].
 
 
 def _open_store(db_path):
