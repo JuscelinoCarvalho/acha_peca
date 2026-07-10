@@ -98,6 +98,34 @@ def search(q: str, limit: int = 40):
     return list(found.values())[:limit]
 
 
+# Marcas "genéricas" de cross-reference: o fornecedor (ex.: catálogo MAHLE) joga
+# os códigos de fábrica num balde sem nomear a montadora. Não são marca de verdade.
+_GENERIC_XREF_BRANDS = ("ORIGINAL OEM", "REFERÊNCIA")
+
+
+def _resolve_automakers(codes):
+    """Para códigos OE genéricos, descobre a(s) montadora(s) cruzando o MESMO
+    part_number em outros catálogos do banco, onde ele vem sob a marca real
+    (ex.: '2564093' -> 'SCANIA ORIGINAL'). Devolve {code: [marcas...]}.
+
+    Uma única query para todos os códigos da peça (barato p/ página de detalhe)."""
+    codes = [c for c in set(codes) if c]
+    if not codes:
+        return {}
+    ph = ",".join("?" * len(codes))
+    gen = ",".join("?" * len(_GENERIC_XREF_BRANDS))
+    rows = _C.execute(
+        f"SELECT DISTINCT part_number, brand FROM cross_reference "
+        f"WHERE part_number IN ({ph}) AND brand NOT IN ({gen})",
+        (*codes, *_GENERIC_XREF_BRANDS)).fetchall()
+    out = {}
+    for r in rows:
+        out.setdefault(r["part_number"], []).append(r["brand"])
+    for v in out.values():
+        v.sort()
+    return out
+
+
 def part_detail(pid: str):
     """Peça completa por id: dados + cross-refs + especificações + veículos."""
     p = _C.execute("SELECT * FROM product WHERE id = ?", (pid,)).fetchone()
@@ -105,8 +133,16 @@ def part_detail(pid: str):
         return None
     d = dict(p)
     d["old_codes"] = json.loads(d.get("old_codes") or "[]")
-    d["cross_references"] = [dict(r) for r in _C.execute(
+    xr = [dict(r) for r in _C.execute(
         "SELECT brand, part_number FROM cross_reference WHERE product_id = ? ORDER BY brand", (pid,))]
+    # enriquecimento: para os OE genéricos, tenta nomear a montadora pelo próprio banco.
+    generic_codes = [c["part_number"] for c in xr if (c["brand"] or "").upper() in _GENERIC_XREF_BRANDS]
+    resolved = _resolve_automakers(generic_codes) if generic_codes else {}
+    for c in xr:
+        is_generic = (c["brand"] or "").upper() in _GENERIC_XREF_BRANDS
+        c["oem_generic"] = is_generic
+        c["automakers"] = resolved.get(c["part_number"], []) if is_generic else []
+    d["cross_references"] = xr
     d["specifications"] = [dict(r) for r in _C.execute(
         "SELECT category, description, value, important FROM specification "
         "WHERE product_id = ? AND value IS NOT NULL AND value <> '' ORDER BY important DESC", (pid,))]

@@ -237,7 +237,16 @@ async function showDetail(id) {
   }
 
   if (xr.length) html += `<div class="section"><h3>Equivalentes / OEM <span class="n">${xr.length}</span></h3>` +
-    xr.map(c => `<div class="xref"><span class="brand">${esc(c.brand || "OEM")}</span><span class="code">${esc(c.part_number)}</span></div>`).join("") + `</div>`;
+    xr.map(c => {
+      // marca a exibir: montadora inferida > marca real > rótulo genérico honesto
+      let label = c.brand || "OEM", generic = false;
+      if (c.oem_generic) {
+        const am = c.automakers || [];
+        if (am.length) { label = am.join(" / ") + " · original"; }
+        else { label = "Código original (OEM)"; generic = true; }
+      }
+      return `<div class="xref"><span class="brand${generic ? " gen" : ""}">${esc(label)}</span><span class="code">${esc(c.part_number)}</span></div>`;
+    }).join("") + `</div>`;
 
   if (sp.length) html += `<div class="section"><h3>Dimensões &amp; técnicas <span class="n">${sp.length}</span></h3><div class="grid">` +
     sp.map(s => `<div class="spec"><div class="k">${esc(s.description || s.category)}</div><div class="v">${esc(s.value)}</div></div>`).join("") + `</div></div>`;
