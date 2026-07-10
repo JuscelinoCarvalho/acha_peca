@@ -313,16 +313,37 @@ async function showDetail(id) {
   // com limite e barra de rolagem.
   const vsel = $("#vehbrandsel");
   if (vsel) {
-    const VLIMIT = 80;
+    const MODEL_LIMIT = 80;
     const box = $("#vehscroll"), vc = $("#vehcount");
-    const vehItem = v => `<div class="veh"><span class="m">${esc(v.name || "")} ${esc(v.model || "")}</span>
-      ${(v.engine_name || v.engine_config) ? `<div class="e">${esc([v.engine_name, v.engine_config].filter(Boolean).join(" · "))}</div>` : ""}</div>`;
+    // agrupa por MODELO (name) -> MOTORIZAÇÃO (engine_config), somando versões e
+    // códigos de motor. Some as duplicatas gigantes da fonte (mesmo carro repetido).
     const renderVeh = () => {
       const b = vsel.value, list = byBrand[b] || [];
-      box.innerHTML = list.slice(0, VLIMIT).map(vehItem).join("");
-      vc.textContent = list.length > VLIMIT
-        ? `mostrando ${VLIMIT} de ${list.length} veículo(s) — ${b}`
-        : `${list.length} veículo(s) — ${b}`;
+      const models = {};
+      list.forEach(v => {
+        const name = (v.name || "—").trim() || "—";
+        const cfg = (v.engine_config || "").trim();
+        const key = cfg || (v.engine_name || "").trim() || (v.model || "").trim() || "—";
+        const m = models[name] || (models[name] = {});
+        const g = m[key] || (m[key] = { label: cfg || key, versions: new Set(), engines: new Set() });
+        const ver = (v.model || "").trim();
+        if (ver && ver !== "-") g.versions.add(ver);
+        const en = (v.engine_name || "").trim();
+        if (en && en !== cfg) g.engines.add(en);
+      });
+      const names = Object.keys(models).sort((a, b) => a.localeCompare(b, "pt-BR"));
+      let totalMot = 0;
+      names.forEach(n => totalMot += Object.keys(models[n]).length);
+      box.innerHTML = names.slice(0, MODEL_LIMIT).map(name => {
+        const mots = Object.values(models[name]).sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+        const rows = mots.map(g => {
+          const sub = [[...g.versions].sort().join(", "), [...g.engines].sort().join(", ")].filter(Boolean).join(" · ");
+          return `<div class="vmmot"><span class="vmcfg">${esc(g.label)}</span>${sub ? `<span class="vmsub">${esc(sub)}</span>` : ""}</div>`;
+        }).join("");
+        return `<div class="vehmodel"><div class="vmname">${esc(name)} <span class="vmn">${mots.length}</span></div>${rows}</div>`;
+      }).join("");
+      vc.textContent = `${names.length} modelo(s) · ${totalMot} motorização(ões) — ${b}` +
+        (names.length > MODEL_LIMIT ? ` (mostrando ${MODEL_LIMIT} modelos)` : "");
     };
     vsel.addEventListener("change", renderVeh);
     renderVeh();
