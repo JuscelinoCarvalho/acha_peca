@@ -5,9 +5,9 @@ do app trouxe id/crossReferences/specifications/pageInfo; as provas de aplicaç�
 confirmaram vehicles/summaryApplication/oldCodes. Aqui reunimos tudo num único
 node, com paginação (skip/take) e pageInfo.total para saber quando parar.
 
-Nota: alguns subcampos de Vehicle são restritos (AUTH_NOT_AUTHORIZED → 401) na
-sessão pública do catálogo — release e fuel. Ficamos com o conjunto liberado:
-brand, name, model, engineName, engineConfiguration.
+Nota: `fuel` VOLTOU a ser liberado na sessão pública (sondado 2026-07-10) e foi
+adicionado. `release` segue restrito (AUTH_NOT_AUTHORIZED → 401). Conjunto usado:
+brand, name, model, engineName, engineConfiguration, fuel.
 """
 
 # Operação enxuta (sem __typename, sem imagens/links/distribuidores que não
@@ -27,7 +27,7 @@ PRODUCT_QUERY = """query MotorProducts($query:String!,$market:MarketType!,$take:
         oldCodes
         crossReferences{ brand{ name } partNumber }
         specifications{ category important description value }
-        vehicles{ brand name model engineName engineConfiguration }
+        vehicles{ brand name model engineName engineConfiguration fuel }
       }
     }
     pageInfo{ total take }

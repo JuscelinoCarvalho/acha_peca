@@ -325,11 +325,13 @@ async function showDetail(id) {
         const cfg = (v.engine_config || "").trim();
         const key = cfg || (v.engine_name || "").trim() || (v.model || "").trim() || "—";
         const m = models[name] || (models[name] = {});
-        const g = m[key] || (m[key] = { label: cfg || key, versions: new Set(), engines: new Set() });
+        const g = m[key] || (m[key] = { label: cfg || key, versions: new Set(), engines: new Set(), fuels: new Set() });
         const ver = (v.model || "").trim();
         if (ver && ver !== "-") g.versions.add(ver);
         const en = (v.engine_name || "").trim();
         if (en && en !== cfg) g.engines.add(en);
+        const fu = (v.fuel || "").trim().toUpperCase();
+        if (fu && fu !== "-" && fu !== "N/A") g.fuels.add(fu);
       });
       const names = Object.keys(models).sort((a, b) => a.localeCompare(b, "pt-BR"));
       let totalMot = 0;
@@ -338,7 +340,9 @@ async function showDetail(id) {
         const mots = Object.values(models[name]).sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
         const rows = mots.map(g => {
           const sub = [[...g.versions].sort().join(", "), [...g.engines].sort().join(", ")].filter(Boolean).join(" · ");
-          return `<div class="vmmot"><span class="vmcfg">${esc(g.label)}</span>${sub ? `<span class="vmsub">${esc(sub)}</span>` : ""}</div>`;
+          const fuels = [...g.fuels].sort().map(f =>
+            `<span class="fuel f-${esc(f.split("/")[0].toLowerCase())}">${esc(f)}</span>`).join("");
+          return `<div class="vmmot"><span class="vmcfg">${esc(g.label)}</span>${fuels}${sub ? `<span class="vmsub">${esc(sub)}</span>` : ""}</div>`;
         }).join("");
         return `<div class="vehmodel"><div class="vmname">${esc(name)} <span class="vmn">${mots.length}</span></div>${rows}</div>`;
       }).join("");

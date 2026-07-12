@@ -34,8 +34,12 @@ KNOWN_CATALOGS = [
     "https://albarus.catalogofraga.com.br/",# Albarus    ~379 (2026-07-10)
     "https://champion.catalogofraga.com.br/",# Champion   ~268 (2026-07-10)
 ]  # Grandes exigem login (cofap/skf/marelli/wega/nakata/taranto/viemar/...) — TODO.
-# Sondagem 2026-07-10: além destes, só victorreinz/albarus/champion estavam
-# abertos; o resto das marcas grandes pede login. Ver [[achapeca-oem-enrich]].
+# Sondagem 2026-07-10: além destes, só victorreinz/albarus/champion estavam abertos.
+# ATUALIZAÇÃO 2026-07-12: a Fraga FECHOU (401) a maioria — hoje só continuam
+# ABERTOS mahle, bosch e champion. Os outros 12 (sabo/willtec/delphi/spicer/axios/
+# indisa/corteco/monroe/kyb/victorreinz/ferodo/albarus) pedem login. Os dados que já
+# temos deles seguem válidos, mas não dá pra re-coletar/atualizar sem credenciais.
+# Ver [[achapeca-oem-enrich]].
 
 
 def _open_store(db_path):

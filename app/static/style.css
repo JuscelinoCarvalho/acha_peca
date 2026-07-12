@@ -229,6 +229,13 @@ main{max-width:900px;margin:0 auto;padding:18px 16px}
   padding:4px 0 4px 12px;border-left:2px solid var(--line-2);margin:2px 0 2px 2px}
 .vmmot .vmcfg{font-weight:600;font-size:13px}
 .vmmot .vmsub{color:var(--muted);font-size:12px;font-family:var(--mono)}
+.fuel{font-size:10.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;
+  padding:1px 7px;border-radius:999px;border:1px solid transparent;white-space:nowrap}
+.fuel.f-flex{color:#7ee0a0;background:rgba(46,160,90,.14);border-color:rgba(46,160,90,.35)}
+.fuel.f-gasolina{color:#e6b96b;background:rgba(200,150,60,.14);border-color:rgba(200,150,60,.35)}
+.fuel.f-etanol,.fuel.f-álcool,.fuel.f-alcool{color:#8fc6ff;background:rgba(60,140,230,.14);border-color:rgba(60,140,230,.35)}
+.fuel.f-diesel{color:#d79a86;background:rgba(190,110,80,.14);border-color:rgba(190,110,80,.35)}
+.fuel.f-elétrico,.fuel.f-eletrico,.fuel.f-híbrido,.fuel.f-hibrido{color:#c7a8ff;background:rgba(150,110,230,.14);border-color:rgba(150,110,230,.35)}
 
 /* comprar (Mercado Livre — mantém a cor da marca) */
 .prodgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(146px,1fr));gap:11px;margin-bottom:12px}
