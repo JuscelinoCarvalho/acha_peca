@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 
+# PDFs de catálogo (fonte pesada; ingeridos via `python -m motor pdf`)
+catalog_pdf/
+
 # Databases (too large for GitHub, regenerable)
 *.db
 *.db.bak*

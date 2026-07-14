@@ -16,6 +16,7 @@ from .ingest import ingest_terms, sweep_catalogs, KNOWN_CATALOGS
 from .session import DEFAULT_CATALOG, FragaSession
 from .http_session import HttpFragaSession
 from .auth_session import AuthFragaSession
+from .pdf_catalog import ingest_pdf, PARSERS
 from .store import Store
 
 
@@ -75,6 +76,13 @@ def _cmd_sweep(args):
         if isinstance(n, int):
             total += n
     print(f"   TOTAL: {total} peças em {len(catalogs)} catálogo(s)")
+
+
+def _cmd_pdf(args):
+    label = args.catalog or (args.brand.lower() + " (pdf)")
+    n = ingest_pdf(args.pdf, catalog_label=label, brand=args.brand,
+                   fmt=args.format, db_path=args.db)
+    print(f"\n== PDF ingerido: {n} peças em {label!r} ==")
 
 
 def _cmd_show(args):
@@ -153,6 +161,14 @@ def main(argv=None):
                     help="usa sessão HTTP leve (urllib, sem Chromium)")
     _add_login_args(pw)
     pw.set_defaults(func=_cmd_sweep)
+
+    pp = sub.add_parser("pdf", help="ingere um catálogo em PDF (marcas sem API)")
+    pp.add_argument("pdf", help="caminho do PDF")
+    pp.add_argument("--brand", default="NAKATA", help="marca fabricante (padrão: NAKATA)")
+    pp.add_argument("--catalog", help="rótulo do catálogo (padrão: '<marca> (pdf)')")
+    pp.add_argument("--format", choices=sorted(PARSERS), default="nakata-table",
+                    help="formato da tabela (padrão: nakata-table)")
+    pp.set_defaults(func=_cmd_pdf)
 
     ps = sub.add_parser("show", help="mostra uma peça do banco")
     ps.add_argument("part_number")
