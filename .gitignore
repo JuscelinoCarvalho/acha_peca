@@ -3,8 +3,10 @@
 .env.*
 !.env.example
 
-# PDFs de catálogo (fonte pesada; ingeridos via `python -m motor pdf`)
-catalog_pdf/
+# PDFs de catálogo — os pesados (linha pesada, dezenas de MB) ficam de fora;
+# os de leves/utilitários são versionados p/ reprodutibilidade do `motor pdf`.
+catalog_pdf/*
+!catalog_pdf/aff000426lancamentos-ano-2025tabela_f7.pdf
 
 # Databases (too large for GitHub, regenerable)
 *.db
