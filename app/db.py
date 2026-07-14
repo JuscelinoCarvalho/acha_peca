@@ -134,8 +134,8 @@ def part_detail(pid: str):
     d = dict(p)
     d["old_codes"] = json.loads(d.get("old_codes") or "[]")
     d["vehicles"] = [dict(r) for r in _C.execute(
-        "SELECT brand, name, model, engine_name, engine_config, fuel FROM vehicle "
-        "WHERE product_id = ? ORDER BY brand, name", (pid,))]
+        "SELECT brand, name, model, engine_name, engine_config, fuel, year_start, year_end "
+        "FROM vehicle WHERE product_id = ? ORDER BY brand, name", (pid,))]
     # inferência por aplicação: peça NÃO-universal que atende UMA só montadora ->
     # os códigos OE genéricos são (com alta probabilidade) dessa montadora.
     veh_brands = {(v.get("brand") or "").strip() for v in d["vehicles"] if (v.get("brand") or "").strip()}

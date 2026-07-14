@@ -68,6 +68,8 @@ CREATE TABLE IF NOT EXISTS vehicle (
   engine_name   TEXT,
   engine_config TEXT,
   fuel          TEXT,   -- combustível (FLEX/GASOLINA/DIESEL/ÁLCOOL/...)
+  year_start    INTEGER,-- ano inicial da aplicação (quando o catálogo fornece)
+  year_end      INTEGER,-- ano final
   brand_n       TEXT,   -- normalizado (sem acento) p/ busca
   name_n        TEXT,
   model_n       TEXT
@@ -156,10 +158,12 @@ class Store:
              for s in (p.get("specifications") or [])],
         )
         cur.executemany(
-            "INSERT INTO vehicle (product_id, brand, name, model, engine_name, engine_config, fuel, brand_n, name_n, model_n) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO vehicle (product_id, brand, name, model, engine_name, engine_config, fuel, "
+            "year_start, year_end, brand_n, name_n, model_n) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             [(pid, v.get("brand"), v.get("name"), v.get("model"),
               v.get("engineName"), v.get("engineConfiguration"), v.get("fuel"),
+              v.get("startYear"), v.get("endYear"),
               _norm(v.get("brand")), _norm(v.get("name")), _norm(v.get("model")))
              for v in (p.get("vehicles") or [])],
         )
