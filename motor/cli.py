@@ -7,17 +7,41 @@ Comandos:
 """
 
 import argparse
+import functools
+import os
+import sys
 from collections import Counter
 
 from .ingest import ingest_terms, sweep_catalogs, KNOWN_CATALOGS
 from .session import DEFAULT_CATALOG, FragaSession
 from .http_session import HttpFragaSession
+from .auth_session import AuthFragaSession
 from .store import Store
 
 
 def _session_cls(args):
-    """Escolhe a sessão: --http (urllib, leve) ou padrão (Playwright)."""
+    """Escolhe a sessão:
+      --login  -> AuthFragaSession (catálogos que fecharam a API e pedem login)
+      --http   -> HttpFragaSession (urllib, leve)
+      padrão   -> FragaSession (Playwright)
+    Credenciais do --login vêm de --user/--pass ou das env FRAGA_USER/FRAGA_PASS.
+    """
+    if getattr(args, "login", False):
+        user = args.user or os.getenv("FRAGA_USER")
+        pw = args.password or os.getenv("FRAGA_PASS")
+        if not (user and pw):
+            sys.exit("erro: --login exige credenciais (use --user/--pass ou "
+                     "as variáveis de ambiente FRAGA_USER/FRAGA_PASS)")
+        return functools.partial(AuthFragaSession, username=user, password=pw)
     return HttpFragaSession if getattr(args, "http", False) else FragaSession
+
+
+def _add_login_args(p):
+    """Flags de login compartilhados por ingest/sweep (catálogos fechados)."""
+    p.add_argument("--login", action="store_true",
+                   help="usa sessão autenticada (catálogos que pedem login: cofap, ...)")
+    p.add_argument("--user", help="usuário Fraga (ou env FRAGA_USER)")
+    p.add_argument("--pass", dest="password", help="senha Fraga (ou env FRAGA_PASS)")
 
 
 def _cmd_ingest(args):
@@ -116,6 +140,7 @@ def main(argv=None):
     pi.add_argument("--headed", action="store_true", help="mostra o navegador")
     pi.add_argument("--http", action="store_true",
                     help="usa sessão HTTP leve (urllib, sem Chromium)")
+    _add_login_args(pi)
     pi.set_defaults(func=_cmd_ingest)
 
     pw = sub.add_parser("sweep", help="varre o catálogo INTEIRO (query vazia)")
@@ -126,6 +151,7 @@ def main(argv=None):
     pw.add_argument("--headed", action="store_true", help="mostra o navegador")
     pw.add_argument("--http", action="store_true",
                     help="usa sessão HTTP leve (urllib, sem Chromium)")
+    _add_login_args(pw)
     pw.set_defaults(func=_cmd_sweep)
 
     ps = sub.add_parser("show", help="mostra uma peça do banco")
