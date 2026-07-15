@@ -38,6 +38,38 @@ def ml_item_url(url: str) -> str:
     return f"{url}{sep}{_ML_AFF}"
 
 
+def oem_catalog_links(code: str) -> list:
+    """Links de BUSCA por número em catálogos OEM globais.
+
+    Para a cauda-longa OEM-only (ex.: junta específica de Subaru) que a reposição
+    brasileira não cobre — o usuário é roteado para onde a peça é achável/comprável
+    pelo número OEM. São URLs que o NAVEGADOR do usuário abre; não raspamos nada
+    (o Amayama, p.ex., resolve /en/search?q=<oem> para a página canônica da peça).
+    """
+    c = (code or "").strip()
+    if not c:
+        return []
+    q = quote(c)
+    return [
+        {"store": "Amayama",       "url": f"https://www.amayama.com/en/search?q={q}"},
+        {"store": "PartSouq",      "url": f"https://partsouq.com/en/search/all?q={q}"},
+        {"store": "RockAuto",      "url": f"https://www.rockauto.com/en/partsearch/?partnum={q}"},
+        {"store": "eBay",          "url": f"https://www.ebay.com/sch/i.html?_nkw={q}"},
+        {"store": "Mercado Livre", "url": f"https://lista.mercadolivre.com.br/{q}?{_ML_AFF}"},
+    ]
+
+
+def _best_oem_code(part: dict) -> str:
+    """Melhor código p/ buscar em catálogo OEM: o cross-ref OEM (número da
+    montadora) quando houver — o código próprio da peça (ex.: Nakata NBxxxxx) não
+    existe nesses catálogos; o OEM sim."""
+    for c in (part.get("cross_references") or []):
+        pc = (c.get("part_number") or "").strip()
+        if pc:
+            return pc
+    return (part.get("part_number") or "").strip()
+
+
 def buy_section(part: dict) -> dict:
     """Monta a seção de compra: links de busca por código OEM (+ cards com preço
     se houver cache).
@@ -48,10 +80,15 @@ def buy_section(part: dict) -> dict:
     derruba a sessão. Se um dia um ACESSO PAGO (proxy/anti-bot ou API de dados)
     popular ml_cache por grupo, os cards com preço aparecem aqui automaticamente.
 
-    Desligada por padrão (BUY_ENABLED) — ver comentário no topo do módulo.
+    A parte de catálogo OEM (`oem_links`) fica SEMPRE ligada — é o roteamento útil
+    p/ a cauda-longa OEM-only e não tem o problema de tráfego-de-graça do ML. Só a
+    parte do Mercado Livre respeita BUY_ENABLED (ver comentário no topo do módulo).
     """
+    oem_code = _best_oem_code(part)
+    base = {"products": [], "search_links": [],
+            "oem_code": oem_code, "oem_links": oem_catalog_links(oem_code)}
     if not BUY_ENABLED:
-        return {"products": [], "search_links": []}
+        return base
 
     brand = part.get("brand") or ""
     grp = part.get("product_group") or ""
@@ -86,4 +123,6 @@ def buy_section(part: dict) -> dict:
         links.append({"kind": "descricao", "label": f"{grp} {brand}".strip(),
                       "url": ml_search(f"{grp} {brand}".strip())})
 
-    return {"products": products[:6], "search_links": links}
+    base["products"] = products[:6]
+    base["search_links"] = links
+    return base

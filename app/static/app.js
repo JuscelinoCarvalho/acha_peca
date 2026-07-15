@@ -160,10 +160,22 @@ function renderResults(results, statusText) {
   mountAds();
 }
 
+// links de busca por número em catálogos OEM globais (cauda-longa OEM-only)
+function oemCatalogHtml(links, code) {
+  if (!links || !links.length) return "";
+  const items = links.map(l =>
+    `<a class="oemcat" href="${esc(l.url)}" target="_blank" rel="noopener sponsored">${esc(l.store)} ↗</a>`).join("");
+  return `<div class="oemwrap"><div class="oemhint">Buscar o código <b>${esc(code)}</b> nos catálogos OEM:</div>`
+    + `<div class="oemlinks">${items}</div></div>`;
+}
+
 async function showSearch(q) {
   input.value = q; spin();
-  const { results } = await api("/api/search?q=" + encodeURIComponent(q));
-  if (!results.length) return void (main.innerHTML = `<div class="empty"><div class="big">🔍</div><p>Nada encontrado para <b>${esc(q)}</b>.</p></div>`);
+  const res = await api("/api/search?q=" + encodeURIComponent(q));
+  const results = res.results || [];
+  if (!results.length) return void (main.innerHTML = `<div class="empty"><div class="big">🔍</div>`
+    + `<p>Nada no nosso banco para <b>${esc(q)}</b>.</p>`
+    + oemCatalogHtml(res.oem_links, q.trim()) + `</div>`);
   renderResults(results, `${results.length} resultado(s) para <b>${esc(q)}</b>`);
 }
 
@@ -216,8 +228,8 @@ async function showDetail(id) {
   </div>`;
 
   const buy = d.buy || {};
-  const prods = buy.products || [], slinks = buy.search_links || [];
-  if (prods.length || slinks.length) {
+  const prods = buy.products || [], slinks = buy.search_links || [], oemLinks = buy.oem_links || [];
+  if (prods.length || slinks.length || oemLinks.length) {
     html += `<div class="section"><h3>Comprar 🛒</h3>`;
     if (prods.length) {
       html += `<div class="prodgrid">` + prods.map(p => `
@@ -233,6 +245,7 @@ async function showDetail(id) {
         <a class="buy ${esc(b.kind)}" href="${esc(b.url)}" target="_blank" rel="noopener sponsored">
           <span class="store">Mercado Livre</span><span class="lbl">Buscar: ${esc(b.label)}</span></a>`).join("") + `</div>`;
     }
+    if (oemLinks.length) html += oemCatalogHtml(oemLinks, buy.oem_code || d.part_number);
     html += `<div class="buynote">Links patrocinados — comprando por aqui você apoia o acha peça.</div></div>`;
   }
 

@@ -83,7 +83,11 @@ def api_stats():
 
 @app.get("/api/search")
 def api_search(q: str = Query(..., min_length=1), limit: int = 40):
-    return {"query": q, "results": db.search(q, limit=min(limit, 100))}
+    results = db.search(q, limit=min(limit, 100))
+    resp = {"query": q, "results": results}
+    if not results:  # nada no banco → roteia p/ catálogos OEM globais pelo código
+        resp["oem_links"] = affiliate.oem_catalog_links(q.strip())
+    return resp
 
 
 @app.get("/api/part/{pid}")
