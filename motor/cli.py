@@ -17,6 +17,7 @@ from .session import DEFAULT_CATALOG, FragaSession
 from .http_session import HttpFragaSession
 from .auth_session import AuthFragaSession
 from .pdf_catalog import ingest_pdf, PARSERS
+from .cross_catalog import ingest_cross, PARSERS as CROSS_PARSERS
 from .store import Store
 
 
@@ -83,6 +84,13 @@ def _cmd_pdf(args):
     n = ingest_pdf(args.pdf, catalog_label=label, brand=args.brand,
                    fmt=args.format, db_path=args.db)
     print(f"\n== PDF ingerido: {n} peças em {label!r} ==")
+
+
+def _cmd_cross(args):
+    label = args.catalog or (args.brand.lower() + " (cross)")
+    n = ingest_cross(args.file, catalog_label=label, brand=args.brand,
+                     fmt=args.format, db_path=args.db)
+    print(f"\n== cross ingerido: {n} peças em {label!r} ==")
 
 
 def _cmd_show(args):
@@ -169,6 +177,14 @@ def main(argv=None):
     pp.add_argument("--format", choices=sorted(PARSERS), default="nakata-table",
                     help="formato da tabela (padrão: nakata-table)")
     pp.set_defaults(func=_cmd_pdf)
+
+    pc = sub.add_parser("cross", help="ingere tabela de intercâmbio (xls: código↔OEM)")
+    pc.add_argument("file", help="caminho da planilha .xls de cross")
+    pc.add_argument("--brand", default="555", help="marca fabricante (padrão: 555)")
+    pc.add_argument("--catalog", help="rótulo do catálogo (padrão: '<marca> (cross)')")
+    pc.add_argument("--format", choices=sorted(CROSS_PARSERS), default="cross-xls",
+                    help="formato da planilha (padrão: cross-xls)")
+    pc.set_defaults(func=_cmd_cross)
 
     ps = sub.add_parser("show", help="mostra uma peça do banco")
     ps.add_argument("part_number")
