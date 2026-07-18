@@ -263,8 +263,82 @@ def parse_555_pdf(pdf_path, brand="555", **_):
     return products
 
 
+_MAX_TYPE = {"MA": "FILTRO DE AR", "MO": "FILTRO DE ÓLEO",
+             "MF": "FILTRO DE COMBUSTÍVEL"}
+_MAXRE = re.compile(r"^M[AOF]?\d{2,4}[A-Z]{0,3}$")
+
+
+def _max_colbounds(h):
+    """Do header 'MAX OEM  MAX OEM  MAX OEM' -> faixas de char (max_ini, oem_ini, fim)."""
+    maxs = [m.start() for m in re.finditer(r"MAX", h)]
+    oems = [m.start() for m in re.finditer(r"OEM", h)]
+    cols = []
+    for i, mx in enumerate(maxs):
+        oe = min([o for o in oems if o > mx], default=len(h) + 50)
+        end = maxs[i + 1] if i + 1 < len(maxs) else 10 ** 9
+        cols.append((mx, oe, end))
+    return cols
+
+
+def parse_maxnippon_cross(pdf_path, brand="NIPPON MAX", **_):
+    """Seção 'MAX TO OEM NUMBER CROSS-REFERENCE' do catálogo Nippon Max (filtros).
+
+    Três pares de colunas ``MAX | OEM`` por linha; linhas de continuação (MAX em
+    branco) acrescentam OEMs ao último código MAX daquela coluna. Ancora no código
+    MAX (grupo inferido pelo prefixo: MA=ar, MO=óleo, MF=combustível); OEMs viram
+    cross sob 'ORIGINAL OEM'.
+    """
+    import subprocess
+
+    txt = subprocess.run(["pdftotext", "-layout", pdf_path, "-"],
+                         capture_output=True, text=True, check=True).stdout
+    cross = {}          # MAX -> [OEMs] (ordenado)
+    cols, last, inseg = None, [None, None, None], False
+    for raw in txt.replace("‑", "-").splitlines():
+        line = raw.rstrip("\n")
+        if "MAX TO OEM NUMBER CROSS" in line:
+            inseg = True
+            continue
+        if any(k in line for k in ("OEM TO MAX", "REVERSE APPLIC", "CABIN FILTER")):
+            inseg = False
+        if not inseg:
+            continue
+        if re.search(r"MAX\s+OEM", line):     # header da página: recalcula colunas
+            cols, last = _max_colbounds(line), [None, None, None]
+            continue
+        if not cols:
+            continue
+        for ci, (a, b, e) in enumerate(cols):
+            mx = line[a:b].strip().replace(" ", "") if a < len(line) else ""
+            oe = line[b:e].strip() if b < len(line) else ""
+            oe = oe.split()[0] if oe else ""
+            if mx and _MAXRE.match(mx):
+                last[ci] = mx
+            if oe and oe[0].isdigit() and last[ci]:
+                cross.setdefault(last[ci], [])
+                if oe not in cross[last[ci]]:
+                    cross[last[ci]].append(oe)
+
+    products = []
+    for code, oems in cross.items():
+        products.append({
+            "partNumber": code,
+            "brand": {"name": brand},
+            "productGroup": {"name": _MAX_TYPE.get(code[:2], "FILTRO")},
+            "status": "ACTIVE",
+            "summaryApplication": None,
+            "containsUniversalApplication": False,
+            "oldCodes": oems,
+            "crossReferences": [{"brand": {"name": "ORIGINAL OEM"}, "partNumber": o}
+                                for o in oems],
+            "specifications": [],
+            "vehicles": [],
+        })
+    return products
+
+
 PARSERS = {"cross-xls": parse_cross_xls, "hdk-xls": parse_hdk_xls,
-           "555-pdf": parse_555_pdf}
+           "555-pdf": parse_555_pdf, "maxnippon-cross": parse_maxnippon_cross}
 
 
 def ingest_cross(path, catalog_label, brand="555", fmt="cross-xls",
