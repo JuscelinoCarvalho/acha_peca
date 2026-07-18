@@ -149,7 +149,122 @@ def parse_hdk_xls(path, brand="HDK", **_):
     return list(prods.values())
 
 
-PARSERS = {"cross-xls": parse_cross_xls, "hdk-xls": parse_hdk_xls}
+_MAKES_555 = {"TOYOTA", "NISSAN", "HONDA", "MAZDA", "MITSUBISHI", "SUBARU",
+              "SUZUKI", "DAIHATSU", "ISUZU", "LEXUS", "HINO", "KIA", "HYUNDAI",
+              "DAEWOO", "SSANGYONG"}
+_CAT_KW = ("ROD", "JOINT", "ARM", "LINK", "PIN", "BUSH", "ASSY")
+_P555 = re.compile(r"^[A-Z]{2}-?\d{3,4}[A-Z]?$")
+
+
+def _yy(x):
+    """Ano de 2 dígitos do catálogo 555 -> 4 dígitos (>=30 é 19xx, senão 20xx)."""
+    x = int(x)
+    return 1900 + x if x >= 30 else 2000 + x
+
+
+def _yrange(tok):
+    m = re.match(r"(\d{2})-(\d{2})", tok) or re.match(r"(\d{2})", tok)
+    if not m:
+        return (None, None)
+    g = m.groups()
+    s = _yy(g[0])
+    e = _yy(g[1]) if len(g) > 1 and g[1] else s
+    if e < s:                       # datas invertidas no PDF-fonte (ex.: '64-59')
+        e = s
+    return (s, e)
+
+
+def parse_555_pdf(pdf_path, brand="555", **_):
+    """Catálogo completo 555 em PDF (colunas ``555 NO. | O.E.M. | CAR NAME |
+    MODEL | YEAR | POSITION``), agrupado por montadora e por categoria.
+
+    É o complemento do ``kross 555-oem.xls``: traz a APLICAÇÃO (montadora/modelo/
+    ano) que o xls não tem. Une automaticamente os OEMs do xls-irmão (mesma pasta)
+    para não perder equivalências. Ancora no código 555; OEMs viram cross sob
+    "ORIGINAL OEM".
+    """
+    import subprocess
+    from glob import glob
+    import os
+
+    txt = subprocess.run(["pdftotext", "-layout", pdf_path, "-"],
+                         capture_output=True, text=True, check=True).stdout
+    make = cat = cur = None
+    prods = {}    # 555 -> {"cat","oems"(ordenado),"veh"[(brand,name,model,ys,ye)]}
+    for raw in txt.replace("‑", "-").splitlines():
+        s = raw.strip()
+        if not s or "O.E.M" in s or ("555" in s and "NO" in s):
+            continue
+        f = re.split(r"\s{2,}", s)
+        if len(f) == 1:                       # cabeçalho de seção (montadora/categoria)
+            u = f[0].upper()
+            if u in _MAKES_555:
+                make = u
+            elif any(k in u for k in _CAT_KW):
+                cat = u
+            continue
+        c0 = f[0].strip()
+        if _P555.match(c0):                   # começa nova peça 555
+            cur = c0
+            p = prods.setdefault(cur, {"cat": cat, "oems": [], "veh": []})
+            if len(f) > 1 and f[1].strip():
+                p["oems"].append(f[1].strip())
+            if len(f) >= 4:
+                ys, ye = _yrange(f[4]) if len(f) > 4 else (None, None)
+                p["veh"].append((make, f[2].strip(), f[3].strip(), ys, ye))
+        elif cur:                             # linha de continuação da peça atual
+            p = prods[cur]
+            if re.match(r"^-?\d", c0):
+                oem = c0
+                if oem.startswith("-") and p["oems"]:
+                    oem = p["oems"][-1].split("-")[0] + oem
+                p["oems"].append(oem)
+            if len(f) >= 4:                   # continuação com nova aplicação
+                ys, ye = _yrange(f[-1])
+                p["veh"].append((make, f[1].strip(), f[2].strip(), ys, ye))
+
+    # une OEMs do xls-irmão (se existir na mesma pasta)
+    xls_oems = {}
+    for pat in ("kross*555*oem*.xls", "kross*555*oem*.xls".upper(),
+                "CROSS*555*OEM*.xls", "kross 555-oem.xls"):
+        hits = glob(os.path.join(os.path.dirname(pdf_path), pat))
+        if hits:
+            for prod in parse_cross_xls(hits[0], brand=brand):
+                xls_oems[prod["partNumber"]] = [c["partNumber"] for c in prod["crossReferences"]]
+            break
+
+    products, all_codes = [], set(prods) | set(xls_oems)
+    for code in all_codes:
+        info = prods.get(code, {"cat": None, "oems": [], "veh": []})
+        oems = list(dict.fromkeys(                       # dedupe preservando ordem
+            [_norm(o) for o in info["oems"]] + xls_oems.get(code, [])))
+        vseen, vehicles = set(), []
+        for (b, name, model, ys, ye) in info["veh"]:
+            k = (b, name, model, ys, ye)
+            if k in vseen:
+                continue
+            vseen.add(k)
+            vehicles.append({"brand": b, "name": name or None, "model": model or None,
+                             "engineName": None, "engineConfiguration": None,
+                             "fuel": None, "startYear": ys, "endYear": ye})
+        products.append({
+            "partNumber": code,
+            "brand": {"name": brand},
+            "productGroup": {"name": info["cat"]},
+            "status": "ACTIVE",
+            "summaryApplication": (info["veh"][0][1] if info["veh"] else None),
+            "containsUniversalApplication": False,
+            "oldCodes": oems,
+            "crossReferences": [{"brand": {"name": "ORIGINAL OEM"}, "partNumber": o}
+                                for o in oems],
+            "specifications": [],
+            "vehicles": vehicles,
+        })
+    return products
+
+
+PARSERS = {"cross-xls": parse_cross_xls, "hdk-xls": parse_hdk_xls,
+           "555-pdf": parse_555_pdf}
 
 
 def ingest_cross(path, catalog_label, brand="555", fmt="cross-xls",
