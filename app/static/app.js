@@ -7,6 +7,9 @@ const esc = s => (s == null ? "" : String(s)).replace(/[&<>"]/g, c => ({ "&": "&
 /* minúsculas sem acento — filtro acento-insensível no cliente */
 const ua = s => (s == null ? "" : String(s)).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 const api = async u => (await fetch(u)).json();
+/* tamanho de arquivo legível (KB/MB) */
+const fmtSize = n => n >= 1048576 ? (n / 1048576).toFixed(1) + " MB"
+  : n >= 1024 ? Math.round(n / 1024) + " KB" : n + " B";
 
 /* ---------- roteamento por hash ---------- */
 window.addEventListener("hashchange", route);
@@ -280,6 +283,22 @@ async function showDetail(id) {
       <div class="status subcount" id="vehcount"></div>
     </div>`;
   }
+  const mans = d.manuals || [];
+  if (mans.length) {
+    html += `<div class="section"><h3>Manuais de fábrica <span class="n">${mans.length}</span></h3>` +
+      mans.map(m => {
+        const files = (m.files || []).map(f =>
+          `<a class="manual" href="${esc(f.url)}" target="_blank" rel="noopener">
+             <span class="mext">${esc((f.ext || "").toUpperCase())}</span>
+             <span class="mtitle">${esc(f.title)}</span>
+             ${f.size ? `<span class="msize">${fmtSize(f.size)}</span>` : ""}</a>`).join("");
+        const more = m.count > (m.files || []).length
+          ? `<div class="mmore">+${m.count - m.files.length} outro(s) arquivo(s)</div>` : "";
+        return `<details class="mgroup"><summary>${esc(m.brand)} · ${esc(m.model)} <span class="n">${m.count}</span></summary>${files}${more}</details>`;
+      }).join("") +
+      `<div class="buynote">Manuais de fábrica (jdmfsm.info) — para consulta técnica da montadora/modelo.</div></div>`;
+  }
+
   html += adUnit(CFG.ads && CFG.ads.slot_detail);
   main.innerHTML = html;
   window.scrollTo(0, 0);

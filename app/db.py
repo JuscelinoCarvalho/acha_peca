@@ -8,9 +8,11 @@ e os reversos (peças que atendem um veículo; peças que cruzam um código).
 """
 
 import json
+import re
 import sqlite3
 import unicodedata
 from pathlib import Path
+from urllib.parse import quote
 
 DB_PATH = Path(__file__).resolve().parent.parent / "acha_peca.db"
 
@@ -162,6 +164,7 @@ def part_detail(pid: str):
     d["specifications"] = [dict(r) for r in _C.execute(
         "SELECT category, description, value, important FROM specification "
         "WHERE product_id = ? AND value IS NOT NULL AND value <> '' ORDER BY important DESC", (pid,))]
+    d["manuals"] = manuals_for_vehicles(d["vehicles"])
     return d
 
 
@@ -213,3 +216,100 @@ def stats():
         "catalogs": [dict(r) for r in _C.execute(
             "SELECT catalog, COUNT(*) AS parts FROM product GROUP BY catalog ORDER BY parts DESC")],
     }
+
+
+# ---- manuais de fábrica (manuals.db, índice separado do mirror) -------------
+MANUALS_DB = Path(__file__).resolve().parent.parent / "manuals.db"
+
+
+def _manuals_conn():
+    if not MANUALS_DB.exists():
+        return None
+    try:
+        c = sqlite3.connect(f"file:{MANUALS_DB}?mode=ro", uri=True, check_same_thread=False)
+        c.row_factory = sqlite3.Row
+        return c
+    except sqlite3.Error:
+        return None
+
+
+_M = _manuals_conn()
+# grupos (marca, modelo) carregados uma vez — poucas centenas de linhas
+_MGROUPS = ([dict(r) for r in _M.execute(
+    "SELECT brand, brand_n, model, model_n, COUNT(*) AS n FROM manual "
+    "GROUP BY brand_n, model ORDER BY n DESC")] if _M else [])
+
+
+def _tokens(*vals):
+    """Palavras normalizadas (>=3 chars ou código de chassi tipo 'b13')."""
+    out = set()
+    for v in vals:
+        for w in re.split(r"[^a-z0-9]+", _unaccent(v)):
+            if len(w) >= 3 or (len(w) >= 2 and any(ch.isdigit() for ch in w)):
+                out.add(w)
+    return out
+
+
+def _tok_hit(vt, gt):
+    """Casa dois conjuntos de tokens com tolerância (Corola≈Corolla)."""
+    for a in vt:
+        for b in gt:
+            if a == b:
+                return True
+            if len(a) >= 4 and len(b) >= 4 and (a in b or b in a):
+                return True
+            if len(a) >= 5 and len(b) >= 5 and a[:5] == b[:5]:
+                return True
+    return False
+
+
+def manuals_for_vehicles(vehicles, max_models=10, files_per=12):
+    """Manuais de fábrica cujos (marca, modelo) casam com os veículos da peça.
+
+    Casa por MARCA + interseção tolerante de tokens do nome/modelo do veículo com
+    o nome da pasta do modelo (que costuma juntar chassi + nome comercial)."""
+    if not _M or not vehicles:
+        return []
+    # tokens desejados por marca (a partir dos veículos da peça)
+    want = {}
+    for v in vehicles:
+        bn = _unaccent(v.get("brand"))
+        if not bn:
+            continue
+        want.setdefault(bn, set()).update(_tokens(v.get("name"), v.get("model")))
+    matched = []
+    for g in _MGROUPS:
+        vt = want.get(g["brand_n"])
+        if not vt or g["model"] == "(geral)":
+            continue
+        gt = _tokens(g["model"])
+        if _tok_hit(vt, gt):
+            matched.append(g)
+        if len(matched) >= max_models:
+            break
+    out = []
+    for g in matched:
+        files = [dict(r) for r in _M.execute(
+            "SELECT title, rel_path, ext, size FROM manual "
+            "WHERE brand_n=? AND model=? ORDER BY size DESC LIMIT ?",
+            (g["brand_n"], g["model"], files_per))]
+        for f in files:
+            f["url"] = "/manuais/" + quote(f.pop("rel_path"))
+        out.append({"brand": g["brand"], "model": g["model"],
+                    "count": g["n"], "files": files})
+    return out
+
+
+def manual_files(brand, model, limit=500):
+    """Todos os arquivos de um (marca, modelo) — para a página de navegação."""
+    if not _M:
+        return []
+    rows = _M.execute(
+        "SELECT title, rel_path, ext, size FROM manual WHERE brand_n=? AND model=? "
+        "ORDER BY title LIMIT ?", (_unaccent(brand), model, limit)).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["url"] = "/manuais/" + quote(d.pop("rel_path"))
+        out.append(d)
+    return out

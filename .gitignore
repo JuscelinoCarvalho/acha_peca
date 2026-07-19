@@ -41,3 +41,6 @@ ml_cache.db*
 # OS
 .DS_Store
 Thumbs.db
+
+# índice de manuais (gerado por `python -m motor manuals`)
+manuals.db

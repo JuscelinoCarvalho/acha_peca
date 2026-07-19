@@ -52,6 +52,11 @@ ADS_CLIENT = _env_val("ADS_CLIENT", "")
 ADS_SLOT_RESULTS = _env_val("ADS_SLOT_RESULTS", "")
 ADS_SLOT_DETAIL = _env_val("ADS_SLOT_DETAIL", "")
 
+# raiz do espelho de manuais de fábrica (servido em /manuais). Configurável no .env.
+MANUALS_ROOT = Path(_env_val("ACHAPECA_MANUALS_ROOT", "") or
+                    (Path(__file__).resolve().parent.parent /
+                     "catalog_pdf/jdmfsm/www.jdmfsm.info/Auto"))
+
 
 def _check_admin(token: str):
     if not ADMIN_TOKEN:
@@ -109,6 +114,12 @@ def api_vehicle_parts(name: str = Query(..., min_length=2), brand: str = None, l
 @app.get("/api/vehicle/suggest")
 def api_vehicle_suggest(q: str = Query(..., min_length=2)):
     return {"suggestions": db.vehicle_suggest(q)}
+
+
+@app.get("/api/manuals")
+def api_manuals(brand: str = Query(..., min_length=2), model: str = Query(..., min_length=1)):
+    """Lista completa de arquivos de manual de um (marca, modelo)."""
+    return {"brand": brand, "model": model, "files": db.manual_files(brand, model)}
 
 
 # ---- cotação (lead) ----------------------------------------------------
@@ -300,6 +311,11 @@ def admin_page():
 # ---- estáticos / SPA ---------------------------------------------------
 if STATIC.exists():
     app.mount("/assets", StaticFiles(directory=STATIC), name="assets")
+
+# manuais de fábrica espelhados (PDF/RAR) servidos como arquivos estáticos.
+# StaticFiles bloqueia path-traversal; o conteúdo é público.
+if MANUALS_ROOT.is_dir():
+    app.mount("/manuais", StaticFiles(directory=MANUALS_ROOT), name="manuais")
 
 
 def _index_html():

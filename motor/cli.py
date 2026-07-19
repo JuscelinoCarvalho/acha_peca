@@ -18,6 +18,7 @@ from .http_session import HttpFragaSession
 from .auth_session import AuthFragaSession
 from .pdf_catalog import ingest_pdf, PARSERS
 from .cross_catalog import ingest_cross, PARSERS as CROSS_PARSERS
+from .manuals_index import build_index, DEFAULT_ROOT, DEFAULT_DB
 from .store import Store
 
 
@@ -91,6 +92,11 @@ def _cmd_cross(args):
     n = ingest_cross(args.file, catalog_label=label, brand=args.brand,
                      fmt=args.format, db_path=args.db)
     print(f"\n== cross ingerido: {n} peças em {label!r} ==")
+
+
+def _cmd_manuals(args):
+    total = build_index(root=args.root or DEFAULT_ROOT, db_path=args.out or DEFAULT_DB)
+    print(f"\n== índice de manuais: {total} arquivos ==")
 
 
 def _cmd_show(args):
@@ -185,6 +191,11 @@ def main(argv=None):
     pc.add_argument("--format", choices=sorted(CROSS_PARSERS), default="cross-xls",
                     help="formato da planilha (padrão: cross-xls)")
     pc.set_defaults(func=_cmd_cross)
+
+    pm = sub.add_parser("manuals", help="indexa os manuais de fábrica espelhados (manuals.db)")
+    pm.add_argument("--root", help=f"raiz do mirror (padrão: {DEFAULT_ROOT})")
+    pm.add_argument("--out", help="caminho do manuals.db (padrão: manuals.db na raiz)")
+    pm.set_defaults(func=_cmd_manuals)
 
     ps = sub.add_parser("show", help="mostra uma peça do banco")
     ps.add_argument("part_number")
