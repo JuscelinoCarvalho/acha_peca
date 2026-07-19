@@ -168,7 +168,7 @@ def part_detail(pid: str):
     return d
 
 
-def parts_for_vehicle(name: str, brand: str = None, limit: int = 60):
+def parts_for_vehicle(name: str, brand: str = None, limit: int = 300):
     """Reverso: peças que atendem um veículo. Casa MARCA + modelo + versão,
     tokenizado e sem acento (ex.: 'subaru', 'outback', 'subaru outback')."""
     words = [_unaccent(w) for w in _norm(name).split() if w]

@@ -106,9 +106,9 @@ def api_part(pid: str):
 
 
 @app.get("/api/vehicle/parts")
-def api_vehicle_parts(name: str = Query(..., min_length=2), brand: str = None, limit: int = 60):
+def api_vehicle_parts(name: str = Query(..., min_length=2), brand: str = None, limit: int = 300):
     return {"vehicle": name, "brand": brand,
-            "results": db.parts_for_vehicle(name, brand=brand, limit=min(limit, 120))}
+            "results": db.parts_for_vehicle(name, brand=brand, limit=min(limit, 600))}
 
 
 @app.get("/api/vehicle/suggest")
