@@ -1,7 +1,6 @@
 "use strict";
 const $ = s => document.querySelector(s);
 const main = $("#main"), input = $("#q"), suggestBox = $("#suggest"), hint = $("#hint");
-let mode = "peca";
 let CFG = { ads: null };
 const esc = s => (s == null ? "" : String(s)).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 /* minúsculas sem acento — filtro acento-insensível no cliente */
@@ -48,49 +47,56 @@ function route() {
   showHome();
 }
 
-/* ---------- modo (tabs) ---------- */
-document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
-  document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
-  t.classList.add("active");
-  mode = t.dataset.mode;
-  input.value = ""; suggestBox.hidden = true;
-  input.placeholder = mode === "peca"
-    ? "Código da peça, código OEM ou descrição…"
-    : "Nome do veículo (ex.: GOL, CIVIC, HILUX)…";
-  hint.innerHTML = mode === "peca"
-    ? "Digite um código (ex.: <b>04C103085A</b>) e ache a peça equivalente de qualquer marca."
-    : "Digite um veículo e veja todas as peças do catálogo que o atendem.";
-  input.focus();
-});
+/* ---------- busca unificada (caixa única) ---------- */
+const goSearch  = q    => location.hash = "peca/" + encodeURIComponent(q);
+const goVehicle = name => location.hash = "veic/" + encodeURIComponent(name);
+const goDetail  = id   => location.hash = "id/"   + encodeURIComponent(id);
 
-/* ---------- busca ---------- */
 $("#go").onclick = submit;
 input.addEventListener("keydown", e => { if (e.key === "Enter") submit(); });
-function submit() {
+
+/* Enter / botão: melhor palpite. Código (tem dígito) -> busca de peça;
+   texto que casa um veículo -> veículo; senão -> busca de peça/descrição. */
+async function submit() {
   const q = input.value.trim();
   if (!q) return;
   suggestBox.hidden = true;
-  location.hash = (mode === "peca" ? "peca/" : "veic/") + encodeURIComponent(q);
+  if (/\d/.test(q)) return goSearch(q);
+  spin();
+  try {
+    const { vehicles } = await api("/api/suggest?q=" + encodeURIComponent(q));
+    if (vehicles && vehicles.length) return goVehicle(vehicles[0].name);
+  } catch (_) {}
+  goSearch(q);
 }
 
-/* autocomplete de veículo */
+/* autocomplete unificado: veículos + peças/códigos num dropdown só */
 let sugT;
 input.addEventListener("input", () => {
-  if (mode !== "veiculo") { suggestBox.hidden = true; return; }
   clearTimeout(sugT);
   const q = input.value.trim();
   if (q.length < 2) { suggestBox.hidden = true; return; }
-  sugT = setTimeout(async () => {
-    const { suggestions } = await api("/api/vehicle/suggest?q=" + encodeURIComponent(q));
-    if (!suggestions.length) { suggestBox.hidden = true; return; }
-    suggestBox.innerHTML = suggestions.map(s =>
-      `<div data-v="${esc(s.name)}"><span>${esc(s.brand)} <b>${esc(s.name)}</b></span><span class="b">${s.parts} peças</span></div>`).join("");
-    suggestBox.hidden = false;
-    suggestBox.querySelectorAll("div[data-v]").forEach(d => d.onclick = () => {
-      input.value = d.dataset.v; suggestBox.hidden = true; submit();
-    });
-  }, 180);
+  sugT = setTimeout(() => loadSuggest(q), 160);
 });
+
+async function loadSuggest(q) {
+  let data;
+  try { data = await api("/api/suggest?q=" + encodeURIComponent(q)); }
+  catch (_) { suggestBox.hidden = true; return; }
+  if (input.value.trim() !== q) return;              // descarta resposta obsoleta
+  const vs = data.vehicles || [], ps = data.parts || [];
+  let html = "";
+  if (vs.length) html += `<div class="sgroup">Veículos</div>` + vs.map(s =>
+    `<div class="sitem" data-veh="${esc(s.name)}"><span>🚗 ${esc(s.brand)} <b>${esc(s.name)}</b></span><span class="b">${s.parts} peças</span></div>`).join("");
+  if (ps.length) html += `<div class="sgroup">Peças / códigos</div>` + ps.map(p =>
+    `<div class="sitem" data-id="${esc(p.id)}"><span>🔩 <b>${esc(p.part_number)}</b> · ${esc(p.brand || "")}</span><span class="b">${esc(p.product_group || "")}</span></div>`).join("");
+  html += `<div class="sitem saction" data-search="1"><span>🔍 Buscar “${esc(q)}” em peças e códigos</span></div>`;
+  suggestBox.innerHTML = html;
+  suggestBox.hidden = false;
+  suggestBox.querySelectorAll("[data-veh]").forEach(d => d.onclick = () => { suggestBox.hidden = true; goVehicle(d.dataset.veh); });
+  suggestBox.querySelectorAll("[data-id]").forEach(d => d.onclick = () => { suggestBox.hidden = true; goDetail(d.dataset.id); });
+  suggestBox.querySelectorAll("[data-search]").forEach(d => d.onclick = () => { suggestBox.hidden = true; goSearch(q); });
+}
 document.addEventListener("click", e => { if (!e.target.closest(".searchbox")) suggestBox.hidden = true; });
 
 /* ---------- telas ---------- */
@@ -121,13 +127,13 @@ function wireCards(root) {
 
 /* lista de resultados com filtros (texto + marca) e barra de rolagem.
    os dados vêm inteiros do servidor; a filtragem é feita no cliente. */
-function renderResults(results, statusText) {
+function renderResults(results, statusText, filterPlaceholder) {
   const brands = [...new Set(results.map(r => r.brand).filter(Boolean))].sort();
   const brandOpts = brands.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join("");
   main.innerHTML = `
     <div class="status">${statusText}</div>
     <div class="resbar">
-      <input class="resfilter" id="resfilter" autocomplete="off" placeholder="filtrar nestes resultados…">
+      <input class="resfilter" id="resfilter" autocomplete="off" placeholder="${esc(filterPlaceholder || "filtrar nestes resultados…")}">
       <select class="selbox" id="resbrand">
         <option value="">Todas as marcas (${brands.length})</option>${brandOpts}
       </select>
@@ -186,7 +192,7 @@ async function showVehicle(name) {
   input.value = name; spin();
   const { results } = await api("/api/vehicle/parts?name=" + encodeURIComponent(name));
   if (!results.length) return void (main.innerHTML = `<div class="empty"><div class="big">🚗</div><p>Nenhuma peça achada para <b>${esc(name)}</b>.</p></div>`);
-  renderResults(results, `${results.length} peça(s) que atendem <b>${esc(name)}</b>`);
+  renderResults(results, `${results.length} peça(s) que atendem <b>${esc(name)}</b>`, "Filtrar peça: nome ou código (ex.: corrente, rolamento)…");
 }
 
 async function showDetail(id) {

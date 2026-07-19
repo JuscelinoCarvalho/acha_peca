@@ -116,6 +116,12 @@ def api_vehicle_suggest(q: str = Query(..., min_length=2)):
     return {"suggestions": db.vehicle_suggest(q)}
 
 
+@app.get("/api/suggest")
+def api_suggest(q: str = Query(..., min_length=2)):
+    """Sugestão unificada (caixa única): veículos + peças/códigos."""
+    return db.suggest(q)
+
+
 @app.get("/api/manuals")
 def api_manuals(brand: str = Query(..., min_length=2), model: str = Query(..., min_length=1)):
     """Lista completa de arquivos de manual de um (marca, modelo)."""

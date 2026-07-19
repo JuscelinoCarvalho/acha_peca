@@ -363,3 +363,13 @@ footer b{color:var(--text);font-variant-numeric:tabular-nums}
 .manual .mtitle{flex:1;font-size:13px;word-break:break-word}
 .manual .msize{flex:none;color:var(--faint);font-size:11.5px;font-family:var(--mono)}
 .mmore{padding:8px 13px;color:var(--muted);font-size:12px;border-top:1px solid var(--line)}
+
+/* ---- dropdown de busca unificada (veículos + peças) ---- */
+.suggest .sgroup{padding:8px 14px 4px;font-size:10px;text-transform:uppercase;
+  letter-spacing:.9px;color:var(--faint);font-weight:800;cursor:default;
+  background:transparent;justify-content:flex-start;border-bottom:0}
+.suggest .sgroup:hover{background:transparent}
+.suggest .sitem{gap:12px}
+.suggest .sitem span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.suggest .saction{color:var(--brand);font-weight:600;border-top:1px solid var(--line)}
+.suggest .saction:hover{background:var(--tint-a)}

@@ -188,6 +188,21 @@ def parts_for_vehicle(name: str, brand: str = None, limit: int = 60):
     return [dict(r) for r in _C.execute(sql, params)]
 
 
+def suggest(q: str, vlimit: int = 6, plimit: int = 5):
+    """Sugestão unificada p/ a caixa única: veículos + peças/códigos.
+
+    Peças só entram quando o termo parece código (tem dígito) — evita rodar o
+    LIKE pesado de cross_reference a cada tecla em nomes de veículo."""
+    q = _norm(q)
+    vehicles = vehicle_suggest(q, limit=vlimit)
+    parts = []
+    if any(ch.isdigit() for ch in q):
+        parts = [{k: r.get(k) for k in
+                  ("id", "part_number", "brand", "product_group", "match_type", "matched_code")}
+                 for r in search(q, limit=plimit)]
+    return {"vehicles": vehicles, "parts": parts}
+
+
 def vehicle_suggest(q: str, limit: int = 15):
     """Autocomplete de veículos: casa MARCA ou modelo (sem acento)."""
     words = [_unaccent(w) for w in _norm(q).split() if w]
