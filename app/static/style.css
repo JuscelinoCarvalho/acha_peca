@@ -373,3 +373,21 @@ footer b{color:var(--text);font-variant-numeric:tabular-nums}
 .suggest .sitem span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .suggest .saction{color:var(--brand);font-weight:600;border-top:1px solid var(--line)}
 .suggest .saction:hover{background:var(--tint-a)}
+
+/* ---- hero / home ---- */
+.hero{max-width:440px;margin:26px auto 0;text-align:center;padding:0 8px;animation:rise .35s ease both}
+.hero-ico{width:66px;height:66px;margin:0 auto 14px;display:grid;place-items:center;
+  font-size:30px;border-radius:18px;background:radial-gradient(120% 120% at 30% 20%,var(--tint-a),transparent),var(--surface-2);
+  border:1px solid var(--line-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.hero h2{font-size:19px;line-height:1.3;font-weight:800;letter-spacing:-.2px;
+  background:linear-gradient(180deg,var(--text),var(--muted));-webkit-background-clip:text;
+  background-clip:text;color:transparent;margin-bottom:9px}
+.hero p{color:var(--muted);font-size:13.5px;line-height:1.55;margin:0 auto;max-width:360px}
+.hero p b{color:var(--text)}
+.hero-eg{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;margin-top:20px}
+.eglbl{color:var(--faint);font-size:11px;text-transform:uppercase;letter-spacing:1px;width:100%;margin-bottom:2px}
+.egchip{border:1px solid var(--line-2);background:var(--surface);color:var(--text);
+  border-radius:999px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;
+  transition:transform .12s ease,border-color .12s ease,background .12s ease}
+.egchip:hover{border-color:var(--brand);background:var(--surface-2);transform:translateY(-1px)}
+.egchip:active{transform:translateY(0) scale(.97)}

@@ -1,6 +1,6 @@
 "use strict";
 const $ = s => document.querySelector(s);
-const main = $("#main"), input = $("#q"), suggestBox = $("#suggest"), hint = $("#hint");
+const main = $("#main"), input = $("#q"), suggestBox = $("#suggest");
 let CFG = { ads: null };
 const esc = s => (s == null ? "" : String(s)).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 /* minúsculas sem acento — filtro acento-insensível no cliente */
@@ -101,9 +101,21 @@ document.addEventListener("click", e => { if (!e.target.closest(".searchbox")) s
 
 /* ---------- telas ---------- */
 function showHome() {
-  main.innerHTML = `<div class="empty"><div class="big">🔧</div>
-    <p>Busque por <b>código</b>, <b>código OEM</b>, <b>descrição</b> ou <b>veículo</b>.<br>
-    O intercâmbio cruza marcas e catálogos automaticamente.</p></div>`;
+  main.innerHTML = `<div class="hero">
+    <div class="hero-ico">🔧</div>
+    <h2>Ache a peça — e o equivalente de qualquer marca</h2>
+    <p>Digite um <b>veículo</b>, um <b>código</b> (próprio ou OEM) ou o <b>nome da peça</b>.
+       O intercâmbio cruza marcas e catálogos pra você.</p>
+    <div class="hero-eg">
+      <span class="eglbl">Experimente</span>
+      <button class="egchip" data-veh="OUTBACK">🚗 Outback</button>
+      <button class="egchip" data-veh="CIVIC">🚗 Civic</button>
+      <button class="egchip" data-veh="HILUX">🚗 Hilux</button>
+      <button class="egchip" data-code="04C103085A">🔩 04C103085A</button>
+    </div>
+  </div>`;
+  main.querySelectorAll("[data-veh]").forEach(c => c.onclick = () => { input.value = c.textContent.replace(/^\S+\s/, ""); goVehicle(c.dataset.veh); });
+  main.querySelectorAll("[data-code]").forEach(c => c.onclick = () => { input.value = c.dataset.code; goSearch(c.dataset.code); });
 }
 
 const spin = () => main.innerHTML = `<div class="spinner">buscando…</div>`;
