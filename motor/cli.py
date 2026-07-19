@@ -19,6 +19,7 @@ from .auth_session import AuthFragaSession
 from .pdf_catalog import ingest_pdf, PARSERS
 from .cross_catalog import ingest_cross, PARSERS as CROSS_PARSERS
 from .manuals_index import build_index, DEFAULT_ROOT, DEFAULT_DB
+from . import amayama
 from .store import Store
 
 
@@ -92,6 +93,27 @@ def _cmd_cross(args):
     n = ingest_cross(args.file, catalog_label=label, brand=args.brand,
                      fmt=args.format, db_path=args.db)
     print(f"\n== cross ingerido: {n} peças em {label!r} ==")
+
+
+def _cmd_amayama(args):
+    if args.part:
+        mk, _, code = args.part.partition("/")
+        codes = [(mk.lower(), code.lower())]
+    elif args.html:
+        with open(args.html, encoding="utf-8", errors="replace") as f:
+            codes = amayama.extract_part_codes(f.read(), make=args.make)
+    else:
+        sys.exit("erro: informe --html <arquivo do chassi> ou --part <marca/código>")
+    if args.limit:
+        codes = codes[: args.limit]
+    print(f"» {len(codes)} código(s) de peça")
+    if args.dump_codes:
+        for mk, code in codes:
+            print(f"  {mk}/{code}")
+        return
+    n = amayama.ingest_amayama(codes, catalog_label=args.catalog or "amayama",
+                               db_path=args.db, delay=args.delay)
+    print(f"\n== Amayama ingerido: {n} peças ==")
 
 
 def _cmd_manuals(args):
@@ -191,6 +213,16 @@ def main(argv=None):
     pc.add_argument("--format", choices=sorted(CROSS_PARSERS), default="cross-xls",
                     help="formato da planilha (padrão: cross-xls)")
     pc.set_defaults(func=_cmd_cross)
+
+    pa = sub.add_parser("amayama", help="ingere peças genuínas do Amayama (via HTML de chassi)")
+    pa.add_argument("--html", help="HTML da página do chassi/diagrama (salvo do navegador)")
+    pa.add_argument("--make", help="filtra os códigos por marca (ex.: subaru)")
+    pa.add_argument("--part", help="ingere UMA peça: 'marca/código' (ex.: subaru/803924080)")
+    pa.add_argument("--dump-codes", action="store_true", help="só lista os códigos extraídos")
+    pa.add_argument("--limit", type=int, help="teto de peças")
+    pa.add_argument("--delay", type=float, default=2.5, help="segundos entre requests (gentil)")
+    pa.add_argument("--catalog", help="rótulo do catálogo (padrão: amayama)")
+    pa.set_defaults(func=_cmd_amayama)
 
     pm = sub.add_parser("manuals", help="indexa os manuais de fábrica espelhados (manuals.db)")
     pm.add_argument("--root", help=f"raiz do mirror (padrão: {DEFAULT_ROOT})")
