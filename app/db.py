@@ -213,9 +213,12 @@ def vehicle_suggest(q: str, limit: int = 15):
         conds.append("(brand_n LIKE ? OR name_n LIKE ?)")
         params += [f"%{w}%"] * 2
     params.append(limit)
+    # agrupa pelo nome NORMALIZado (funde 'CIVIC'≡'Civic') e mostra a variante em
+    # caixa alta (MIN é determinístico; maiúsculas < minúsculas em ASCII).
     rows = _C.execute(
-        "SELECT brand, name, COUNT(DISTINCT product_id) AS parts FROM vehicle "
-        f"WHERE {' AND '.join(conds)} GROUP BY brand, name ORDER BY parts DESC LIMIT ?",
+        "SELECT MIN(brand) AS brand, MIN(name) AS name, COUNT(DISTINCT product_id) AS parts "
+        "FROM vehicle "
+        f"WHERE {' AND '.join(conds)} GROUP BY brand_n, name_n ORDER BY parts DESC LIMIT ?",
         params).fetchall()
     return [dict(r) for r in rows]
 
