@@ -77,6 +77,14 @@ CREATE TABLE IF NOT EXISTS vehicle (
 CREATE INDEX IF NOT EXISTS ix_veh_pid   ON vehicle(product_id);
 CREATE INDEX IF NOT EXISTS ix_veh_brand ON vehicle(brand);
 
+-- índice de busca reversa (veículo -> peças). Um blob de TOKENS distintos de
+-- marca/modelo/versão POR PEÇA (~66k linhas) em vez de varrer as ~1,6M linhas
+-- de `vehicle` a cada busca. Reconstruído após cada ingestão (rebuild_search_index).
+CREATE TABLE IF NOT EXISTS product_search (
+  product_id TEXT PRIMARY KEY REFERENCES product(id) ON DELETE CASCADE,
+  veh_txt    TEXT   -- ' tok1 tok2 ... ' (normalizado, com espaços nas bordas)
+);
+
 CREATE TABLE IF NOT EXISTS ingest_log (
   id      INTEGER PRIMARY KEY AUTOINCREMENT,
   term    TEXT,
@@ -177,6 +185,28 @@ class Store:
 
     def commit(self):
         self.conn.commit()
+
+    def rebuild_search_index(self):
+        """(Re)constrói `product_search`: um blob de TOKENS distintos de
+        marca/modelo/versão por peça, p/ a busca reversa veículo→peças ser rápida
+        (varre ~66k linhas em vez das ~1,6M de `vehicle`). Chamar após ingestão."""
+        toks = {}
+        for pid, b, n, m in self.conn.execute(
+                "SELECT product_id, brand_n, name_n, model_n FROM vehicle"):
+            s = toks.get(pid)
+            if s is None:
+                s = toks[pid] = set()
+            for field in (b, n, m):
+                if field:
+                    s.update(field.split())
+        cur = self.conn.cursor()
+        cur.execute("DELETE FROM product_search")
+        cur.executemany(
+            "INSERT INTO product_search (product_id, veh_txt) VALUES (?,?)",
+            ((pid, " " + " ".join(sorted(s)) + " ") for pid, s in toks.items()),
+        )
+        self.conn.commit()
+        return len(toks)
 
     # -- leitura -----------------------------------------------------------
     def get_product(self, part_number):

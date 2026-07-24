@@ -170,21 +170,23 @@ def part_detail(pid: str):
 
 def parts_for_vehicle(name: str, brand: str = None, limit: int = 300):
     """Reverso: peças que atendem um veículo. Casa MARCA + modelo + versão,
-    tokenizado e sem acento (ex.: 'subaru', 'outback', 'subaru outback')."""
+    tokenizado e sem acento (ex.: 'subaru', 'outback', 'subaru outback').
+
+    Usa `product_search` (um blob de tokens distintos POR PEÇA, ~66k linhas)
+    em vez de varrer as ~1,6M linhas de `vehicle` — busca em ~ms, não ~25s.
+    Cada token da consulta é um LIKE substring casado com AND (todos precisam
+    aparecer nos veículos da peça)."""
     words = [_unaccent(w) for w in _norm(name).split() if w]
+    if brand:
+        words += [_unaccent(w) for w in _norm(brand).split() if w]
     if not words:
         return []
-    conds, params = [], []
-    for w in words:
-        conds.append("(v.brand_n LIKE ? OR v.name_n LIKE ? OR v.model_n LIKE ?)")
-        params += [f"%{w}%"] * 3
-    if brand:
-        conds.append("v.brand_n LIKE ?")
-        params.append(f"%{_unaccent(brand)}%")
+    conds = " AND ".join(["s.veh_txt LIKE ?"] * len(words))
+    params = [f"%{w}%" for w in words]
     params.append(limit)
-    sql = ("SELECT DISTINCT p.id, p.part_number, p.brand, p.product_group, p.application, p.catalog "
-           "FROM vehicle v JOIN product p ON p.id = v.product_id "
-           f"WHERE {' AND '.join(conds)} ORDER BY p.brand, p.product_group LIMIT ?")
+    sql = ("SELECT p.id, p.part_number, p.brand, p.product_group, p.application, p.catalog "
+           "FROM product_search s JOIN product p ON p.id = s.product_id "
+           f"WHERE {conds} ORDER BY p.brand, p.product_group LIMIT ?")
     return [dict(r) for r in _C.execute(sql, params)]
 
 

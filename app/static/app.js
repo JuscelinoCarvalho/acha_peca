@@ -119,6 +119,8 @@ function showHome() {
 }
 
 const spin = () => main.innerHTML = `<div class="spinner">buscando…</div>`;
+const errHTML = q => `<div class="empty"><div class="big">⚠️</div>`
+  + `<p>Não deu para buscar <b>${esc(q)}</b> agora. Verifique a conexão e tente de novo.</p></div>`;
 
 function cardHTML(r) {
   const via = r.match_type === "oem" && r.matched_code
@@ -192,7 +194,9 @@ function oemCatalogHtml(links, code) {
 
 async function showSearch(q) {
   input.value = q; spin();
-  const res = await api("/api/search?q=" + encodeURIComponent(q));
+  let res;
+  try { res = await api("/api/search?q=" + encodeURIComponent(q)); }
+  catch (_) { return void (main.innerHTML = errHTML(q)); }
   const results = res.results || [];
   if (!results.length) return void (main.innerHTML = `<div class="empty"><div class="big">🔍</div>`
     + `<p>Nada no nosso banco para <b>${esc(q)}</b>.</p>`
@@ -202,7 +206,10 @@ async function showSearch(q) {
 
 async function showVehicle(name) {
   input.value = name; spin();
-  const { results } = await api("/api/vehicle/parts?name=" + encodeURIComponent(name));
+  let data;
+  try { data = await api("/api/vehicle/parts?name=" + encodeURIComponent(name)); }
+  catch (_) { return void (main.innerHTML = errHTML(name)); }
+  const results = data.results || [];
   if (!results.length) return void (main.innerHTML = `<div class="empty"><div class="big">🚗</div><p>Nenhuma peça achada para <b>${esc(name)}</b>.</p></div>`);
   renderResults(results, `${results.length} peça(s) que atendem <b>${esc(name)}</b>`, "Filtrar peça: nome ou código (ex.: corrente, rolamento)…");
 }

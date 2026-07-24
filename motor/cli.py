@@ -23,6 +23,16 @@ from . import amayama
 from .store import Store
 
 
+def _reindex(db=None):
+    """Reconstrói o índice de busca reversa veículo→peças após uma ingestão."""
+    store = Store(db) if db else Store()
+    try:
+        n = store.rebuild_search_index()
+    finally:
+        store.close()
+    print(f"   índice de busca reconstruído: {n} peças")
+
+
 def _session_cls(args):
     """Escolhe a sessão:
       --login  -> AuthFragaSession (catálogos que fecharam a API e pedem login)
@@ -60,6 +70,7 @@ def _cmd_ingest(args):
     )
     total = sum(res.values())
     print(f"\n== ingestão concluída: {total} peças em {len(res)} termo(s) ==")
+    _reindex(args.db)
 
 
 def _cmd_sweep(args):
@@ -79,6 +90,7 @@ def _cmd_sweep(args):
         if isinstance(n, int):
             total += n
     print(f"   TOTAL: {total} peças em {len(catalogs)} catálogo(s)")
+    _reindex(args.db)
 
 
 def _cmd_pdf(args):
@@ -86,6 +98,7 @@ def _cmd_pdf(args):
     n = ingest_pdf(args.pdf, catalog_label=label, brand=args.brand,
                    fmt=args.format, db_path=args.db)
     print(f"\n== PDF ingerido: {n} peças em {label!r} ==")
+    _reindex(args.db)
 
 
 def _cmd_cross(args):
@@ -93,6 +106,7 @@ def _cmd_cross(args):
     n = ingest_cross(args.file, catalog_label=label, brand=args.brand,
                      fmt=args.format, db_path=args.db)
     print(f"\n== cross ingerido: {n} peças em {label!r} ==")
+    _reindex(args.db)
 
 
 def _cmd_amayama(args):
@@ -114,6 +128,7 @@ def _cmd_amayama(args):
     n = amayama.ingest_amayama(codes, catalog_label=args.catalog or "amayama",
                                db_path=args.db, delay=args.delay)
     print(f"\n== Amayama ingerido: {n} peças ==")
+    _reindex(args.db)
 
 
 def _cmd_manuals(args):
@@ -149,6 +164,10 @@ def _cmd_show(args):
         print(f"   veículos atendidos: {len(vs)} — marcas: {dict(brands)}")
         for v in vs[:8]:
             print(f"      · {v['brand']} {v.get('name') or ''} {v.get('model') or ''} {v.get('engine_name') or ''}")
+
+
+def _cmd_reindex(args):
+    _reindex(args.db)
 
 
 def _cmd_stats(args):
@@ -232,6 +251,9 @@ def main(argv=None):
     ps = sub.add_parser("show", help="mostra uma peça do banco")
     ps.add_argument("part_number")
     ps.set_defaults(func=_cmd_show)
+
+    pr = sub.add_parser("reindex", help="reconstrói o índice de busca reversa veículo→peças")
+    pr.set_defaults(func=_cmd_reindex)
 
     pt = sub.add_parser("stats", help="resumo do banco")
     pt.set_defaults(func=_cmd_stats)
