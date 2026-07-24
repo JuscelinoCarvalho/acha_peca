@@ -437,4 +437,16 @@ async function loadStats() {
 }
 
 /* ---------- service worker (PWA) ---------- */
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => { });
+if ("serviceWorker" in navigator) {
+  // se a página já está sob controle de um SW, uma troca de controlador = deploy
+  // novo assumiu; recarrega UMA vez p/ pegar o app.js atual (evita ficar rodando
+  // JS velho do cache). Ignora a 1ª tomada de controle (primeira visita).
+  const wasControlled = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (reloading || !wasControlled) return;
+    reloading = true;
+    location.reload();
+  });
+  navigator.serviceWorker.register("/sw.js").catch(() => { });
+}
