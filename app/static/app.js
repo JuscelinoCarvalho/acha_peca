@@ -48,9 +48,15 @@ function route() {
 }
 
 /* ---------- busca unificada (caixa única) ---------- */
-const goSearch  = q    => location.hash = "peca/" + encodeURIComponent(q);
-const goVehicle = name => location.hash = "veic/" + encodeURIComponent(name);
-const goDetail  = id   => location.hash = "id/"   + encodeURIComponent(id);
+/* navega por hash; se o destino for o hash ATUAL, o browser não dispara
+   'hashchange' — então re-renderiza na mão (senão o spinner trava pra sempre). */
+function nav(h) {
+  if (location.hash === "#" + h) route();
+  else location.hash = h;
+}
+const goSearch  = q    => nav("peca/" + encodeURIComponent(q));
+const goVehicle = name => nav("veic/" + encodeURIComponent(name));
+const goDetail  = id   => nav("id/"   + encodeURIComponent(id));
 
 $("#go").onclick = submit;
 input.addEventListener("keydown", e => { if (e.key === "Enter") submit(); });
